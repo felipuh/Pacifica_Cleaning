@@ -69,7 +69,7 @@ class PropertySerializer(serializers.ModelSerializer):
         model = Property
         fields = "__all__"
 
-    def get_masked_access(self, obj):
+    def get_masked_access(self, obj) -> str:
         return obj.masked_access()
 
     def to_representation(self, instance):

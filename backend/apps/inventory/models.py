@@ -39,7 +39,7 @@ class StockMovement(TimeStampedUUIDModel):
 
     def save(self, *args, **kwargs):
         self.full_clean()
-        if not self.pk:
+        if self._state.adding:
             if self.movement_type == self.MovementType.IN:
                 self.item.stock_on_hand += self.quantity
             else:

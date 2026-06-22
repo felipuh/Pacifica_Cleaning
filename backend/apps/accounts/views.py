@@ -6,8 +6,10 @@ from django.contrib.auth import login, logout
 from django.middleware.csrf import get_token
 from django.urls import path
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework import serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -33,12 +35,26 @@ def _is_locked(email: str) -> bool:
     return failures >= settings.LOGIN_LOCKOUT_ATTEMPTS
 
 
+@extend_schema(
+    responses=inline_serializer(
+        name="CsrfTokenResponse",
+        fields={"csrfToken": serializers.CharField()},
+    )
+)
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def csrf(request):
     return Response({"csrfToken": get_token(request)})
 
 
+@extend_schema(
+    request=LoginSerializer,
+    responses={
+        200: UserSerializer,
+        400: OpenApiResponse(description="Credenciales invalidas."),
+        429: OpenApiResponse(description="Cuenta bloqueada temporalmente."),
+    },
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([LoginThrottle])
@@ -65,6 +81,13 @@ def login_view(request):
     return Response(UserSerializer(user).data)
 
 
+@extend_schema(
+    request=MfaVerifySerializer,
+    responses={
+        200: UserSerializer,
+        400: OpenApiResponse(description="Codigo MFA invalido o sesion no encontrada."),
+    },
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([LoginThrottle])
@@ -89,6 +112,7 @@ def mfa_verify(request):
     return Response(UserSerializer(user).data)
 
 
+@extend_schema(request=None, responses={204: OpenApiResponse(description="Sesion cerrada.")})
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
@@ -96,6 +120,7 @@ def logout_view(request):
     return Response(status=204)
 
 
+@extend_schema(responses=UserSerializer)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
