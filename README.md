@@ -64,11 +64,19 @@ make run
 
 Abrir:
 
-- Sitio publico: `http://localhost:8000/`
-- Contacto/leads: `http://localhost:8000/contacto/`
-- Admin: `http://localhost:8000/admin/`
-- API docs: `http://localhost:8000/api/docs/`
-- Health: `http://localhost:8000/api/v1/health/`
+- Sitio publico: `http://localhost:8001/`
+- Contacto/leads: `http://localhost:8001/contacto/`
+- Admin: `http://localhost:8001/admin/`
+- API docs: `http://localhost:8001/api/docs/`
+- Health: `http://localhost:8001/api/v1/health/`
+
+Puerto opcional:
+
+```bash
+PORT=8011 make run
+```
+
+Este proyecto debe correr de forma independiente de `guanacaste-real-esta`; la linea base local usa `8001` para evitar conflicto con el backend inmobiliario en `8000`.
 
 ## Validacion
 
@@ -78,14 +86,14 @@ make test
 DJANGO_ENV=production DJANGO_DEBUG=false DJANGO_SECRET_KEY="replace-with-a-long-production-secret" DJANGO_ALLOWED_HOSTS=example.com DATABASE_URL="postgres://pacifica:pacifica_dev_password@localhost:5432/pacifica" make deploy-check
 ```
 
-En esta estacion solo hay Python 3.9, por debajo del baseline Django 5/Python 3.12, asi que las pruebas completas deben correrse en un entorno Python 3.12.
+La estacion debe ejecutar estos comandos con `python3.12`; `python3` puede apuntar a una version anterior segun el sistema.
 
 ## Flujo operativo minimo
 
 Convertir una cotizacion aceptada en orden de servicio:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/quotes/<quote-id>/convert-to-work-order/ \
+curl -X POST http://localhost:8001/api/v1/quotes/<quote-id>/convert-to-work-order/ \
   -H "Content-Type: application/json" \
   -H "X-CSRFToken: <csrf-token>" \
   --cookie "sessionid=<session-id>; csrftoken=<csrf-token>" \

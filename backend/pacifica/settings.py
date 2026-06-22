@@ -17,13 +17,27 @@ ENVIRONMENT = env("ENVIRONMENT", default="local")
 if IS_PRODUCTION and SECRET_KEY == "unsafe-local-development-key-change-me":
     raise RuntimeError("DJANGO_SECRET_KEY must be set when DJANGO_ENV=production")
 
-default_hosts = [] if IS_PRODUCTION else ["localhost", "127.0.0.1", "192.168.56.10", "testserver"]
+default_hosts = [] if IS_PRODUCTION else [
+    "localhost",
+    "127.0.0.1",
+    "192.168.56.10",
+    "pacifica-cleaning.local",
+    "pacifica-cleaning.test",
+    "www.pacifica-cleaning.test",
+    "testserver",
+]
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=default_hosts)
 if IS_PRODUCTION and not ALLOWED_HOSTS:
     raise RuntimeError("DJANGO_ALLOWED_HOSTS must be set when DJANGO_ENV=production")
-default_csrf_origins = [] if IS_PRODUCTION else ["http://localhost:8000", "http://127.0.0.1:8000", "http://192.168.56.10:8000"]
+default_csrf_origins = [] if IS_PRODUCTION else [
+    "http://localhost:8001",
+    "http://127.0.0.1:8001",
+    "http://192.168.56.10:8001",
+    "http://pacifica-cleaning.test",
+    "http://www.pacifica-cleaning.test",
+]
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=default_csrf_origins)
-CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[env("FRONTEND_ORIGIN", default="http://localhost:8000")])
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[env("FRONTEND_ORIGIN", default="http://localhost:8001")])
 CORS_ALLOW_CREDENTIALS = True
 
 INSTALLED_APPS = [

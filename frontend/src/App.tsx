@@ -1,7 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ClipboardCheck, DollarSign, Home, LayoutDashboard, LogIn, MessageCircle, ShieldCheck, Users } from "lucide-react";
+import {
+  BadgeCheck,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardCheck,
+  DollarSign,
+  Home,
+  Hotel,
+  KeyRound,
+  LayoutDashboard,
+  Leaf,
+  LogIn,
+  Menu,
+  MessageCircle,
+  PhoneCall,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Users,
+  X
+} from "lucide-react";
 import { createLead, getMe, listResource, login, SessionUser } from "./api";
-import { coverageZones, faqs, services } from "./content";
+import { benefits, coverageZones, faqs, processSteps, services, whatsappUrl } from "./content";
 
 type View = "public" | "admin" | "policies";
 
@@ -24,18 +46,38 @@ export function App() {
 }
 
 function Header({ view, setView, user }: { view: View; setView: (view: View) => void; user: SessionUser | null }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
+  const setAppView = (nextView: View) => {
+    setView(nextView);
+    closeMenu();
+  };
+
   return (
     <header className="topbar">
       <button className="brand" onClick={() => setView("public")} aria-label="Inicio Pacifica Cleaning">
         <span className="brand-mark">PC</span>
-        <span>Pacifica Cleaning</span>
+        <span>
+          <strong>PACÍFICA</strong>
+          <small>Cleaning</small>
+        </span>
       </button>
-      <nav aria-label="Navegacion principal">
-        <button className={view === "public" ? "active" : ""} onClick={() => setView("public")}>Sitio</button>
-        <button className={view === "admin" ? "active" : ""} onClick={() => setView("admin")}>Admin</button>
-        <button className={view === "policies" ? "active" : ""} onClick={() => setView("policies")}>Legal</button>
+      <button className="menu-toggle" onClick={() => setMenuOpen((current) => !current)} aria-label="Abrir menú" aria-expanded={menuOpen}>
+        {menuOpen ? <X size={22} /> : <Menu size={22} />}
+      </button>
+      <nav className={menuOpen ? "open" : ""} aria-label="Navegación principal">
+        <button className={view === "public" ? "active" : ""} onClick={() => setAppView("public")}>Inicio</button>
+        <a href="#servicios" onClick={closeMenu}>Servicios</a>
+        <a href="#airbnb" onClick={closeMenu}>Airbnb</a>
+        <a href="#proceso" onClick={closeMenu}>Proceso</a>
+        <a href="#cotizar" onClick={closeMenu}>Contacto</a>
+        <button className={view === "admin" ? "active" : ""} onClick={() => setAppView("admin")}>Admin</button>
+        <button className={view === "policies" ? "active" : ""} onClick={() => setAppView("policies")}>Legal</button>
       </nav>
-      {user ? <span className="user-pill">{user.role}</span> : <span className="user-pill muted">Privado</span>}
+      <a className="header-cta" href={whatsappUrl} target="_blank" rel="noreferrer">
+        <MessageCircle size={18} /> Cotizar
+      </a>
+      {user ? <span className="user-pill desktop-only">{user.role}</span> : <span className="user-pill muted desktop-only">Privado</span>}
     </header>
   );
 }
@@ -43,84 +85,272 @@ function Header({ view, setView, user }: { view: View; setView: (view: View) => 
 function PublicSite() {
   return (
     <main>
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Tempate, Guanacaste</p>
-          <h1>Pacifica Cleaning</h1>
-          <p>Limpieza residencial, profunda y para propiedades vacacionales con procesos claros, seguimiento y atencion bilingue.</p>
-          <div className="hero-actions">
-            <a className="primary" href="#cotizar">Solicitar cotizacion</a>
-            <a className="ghost" href="https://wa.me/" target="_blank" rel="noreferrer">
-              <MessageCircle size={18} /> WhatsApp
-            </a>
-          </div>
-        </div>
-        <div className="hero-panel" aria-label="Resumen operativo">
-          <div><strong>6</strong><span>servicios base</span></div>
-          <div><strong>2</strong><span>idiomas</span></div>
-          <div><strong>24h</strong><span>seguimiento inicial</span></div>
-        </div>
-      </section>
+      <Hero />
+      <ServicesSection />
+      <BenefitsSection />
+      <AirbnbSection />
+      <ProcessSection />
+      <TrustSection />
+      <TestimonialsSection />
+      <QuoteForm />
+      <FinalCTA />
+      <FAQSection />
+      <Footer />
+      <WhatsAppButton />
+    </main>
+  );
+}
 
-      <section className="section">
-        <div className="section-heading">
-          <p className="eyebrow">Servicios</p>
-          <h2>Opciones listas para cotizar y adaptar</h2>
+function Hero() {
+  return (
+    <section className="hero" id="inicio">
+      <div className="hero-copy reveal">
+        <p className="eyebrow">Tempate, Guanacaste</p>
+        <h1>Limpieza profesional para hogares y propiedades vacacionales en Guanacaste</h1>
+        <p>Cuidamos cada espacio con detalle, puntualidad y confianza. Ideal para casas, Airbnb, alquileres vacacionales y propiedades familiares.</p>
+        <div className="hero-actions">
+          <a className="primary" href={whatsappUrl} target="_blank" rel="noreferrer">
+            <MessageCircle size={19} /> Solicitar cotización
+          </a>
+          <a className="ghost" href="#servicios">
+            Ver servicios <ChevronRight size={18} />
+          </a>
         </div>
-        <div className="service-grid">
-          {services.map((service) => (
-            <article key={service.title} className="service-card">
-              <ClipboardCheck size={22} />
+        <div className="hero-badges" aria-label="Beneficios principales">
+          <span><ShieldCheck size={16} /> Servicio confiable</span>
+          <span><MessageCircle size={16} /> Atención por WhatsApp</span>
+          <span><Hotel size={16} /> Ideal para Airbnb</span>
+          <span><Sparkles size={16} /> Limpieza residencial</span>
+        </div>
+      </div>
+      <div className="hero-visual reveal delay-1">
+        <img
+          src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=82"
+          alt="Profesional de limpieza preparando una sala residencial luminosa"
+        />
+        <div className="floating-card top">
+          <BadgeCheck size={19} />
+          <span>Más que limpieza, tranquilidad para tu hogar.</span>
+        </div>
+        <div className="floating-card bottom">
+          <strong>24h</strong>
+          <span>Seguimiento inicial y coordinación clara.</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ServicesSection() {
+  const icons = [Home, Sparkles, CalendarDays, KeyRound, ClipboardCheck, Building2];
+  return (
+    <section id="servicios" className="section">
+      <div className="section-heading reveal">
+        <div>
+          <p className="eyebrow">Servicios</p>
+          <h2>Soluciones de limpieza listas para hogares, negocios y reservas.</h2>
+        </div>
+        <a className="section-link" href={whatsappUrl} target="_blank" rel="noreferrer">Cotizar un servicio</a>
+      </div>
+      <div className="service-grid">
+        {services.map((service, index) => {
+          const Icon = icons[index] ?? ClipboardCheck;
+          return (
+            <article key={service.title} className="service-card reveal">
+              <span className="icon-chip"><Icon size={23} /></span>
               <h3>{service.title}</h3>
               <p>{service.detail}</p>
+              <a href="#cotizar">Solicitar información <ChevronRight size={16} /></a>
             </article>
-          ))}
-        </div>
-      </section>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
-      <section className="band">
+function BenefitsSection() {
+  return (
+    <section className="benefits-band">
+      <div className="benefits-copy reveal">
+        <p className="eyebrow">Por qué elegirnos</p>
+        <h2>Servicio local, confiable y puntual en Guanacaste.</h2>
+        <p>Combinamos procesos claros con una atención humana y cercana para que cada limpieza se sienta ordenada desde el primer mensaje.</p>
+      </div>
+      <div className="benefits-grid">
+        {benefits.map((benefit) => (
+          <article key={benefit} className="benefit-item reveal">
+            <CheckCircle2 size={20} />
+            <span>{benefit}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AirbnbSection() {
+  return (
+    <section id="airbnb" className="airbnb-section">
+      <div className="airbnb-media reveal">
+        <img
+          src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=82"
+          alt="Casa vacacional luminosa lista para huéspedes en Costa Rica"
+          loading="lazy"
+        />
+      </div>
+      <div className="airbnb-copy reveal delay-1">
+        <p className="eyebrow">Airbnb y propiedades vacacionales</p>
+        <h2>Espacios impecables para cada visita, reserva o familia.</h2>
+        <p>Apoyamos a anfitriones, administradores e inmobiliarias con limpieza entre reservas, preparación antes del check-in y reporte básico de incidencias.</p>
+        <div className="feature-list">
+          <span><KeyRound size={18} /> Preparación entre check-out y check-in</span>
+          <span><Hotel size={18} /> Revisión visual básica del espacio</span>
+          <span><ClipboardCheck size={18} /> Seguimiento e incidencias autorizadas</span>
+          <span><CalendarDays size={18} /> Servicio recurrente antes de cada reserva</span>
+        </div>
+        <a className="primary" href={whatsappUrl} target="_blank" rel="noreferrer">Solicitar plan para propiedades vacacionales</a>
+      </div>
+    </section>
+  );
+}
+
+function ProcessSection() {
+  return (
+    <section id="proceso" className="section process-section">
+      <div className="section-heading reveal">
         <div>
-          <p className="eyebrow">Como funciona</p>
-          <h2>Solicitud, inspeccion, cotizacion y servicio con checklist</h2>
+          <p className="eyebrow">Proceso</p>
+          <h2>Cotizar es simple, claro y rápido.</h2>
         </div>
-        <ol className="steps">
-          <li>Recibimos datos, propiedad y consentimiento.</li>
-          <li>Definimos alcance o inspeccion previa.</li>
-          <li>Enviamos cotizacion con vigencia.</li>
-          <li>Agendamos, ejecutamos y registramos calidad.</li>
-        </ol>
-      </section>
+      </div>
+      <ol className="process-grid">
+        {processSteps.map((step, index) => (
+          <li key={step} className="process-card reveal">
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <p>{step}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
 
-      <section className="section split">
+function TrustSection() {
+  return (
+    <section className="section split trust-section">
+      <div className="reveal">
+        <p className="eyebrow">Cobertura inicial</p>
+        <h2>Atención local desde Tempate hacia zonas clave de Guanacaste.</h2>
+        <div className="zones">{coverageZones.map((zone) => <span key={zone}>{zone}</span>)}</div>
+      </div>
+      <div className="trust-card reveal delay-1">
+        <Leaf size={24} />
+        <h3>Cuidamos tu hogar como si fuera nuestro.</h3>
+        <p>Procesos verificables, consentimiento para evidencias y comunicación clara antes, durante y después del servicio.</p>
+      </div>
+    </section>
+  );
+}
+
+function TestimonialsSection() {
+  return (
+    <section className="section testimonials-section">
+      <div className="section-heading reveal">
         <div>
-          <p className="eyebrow">Cobertura inicial</p>
-          <h2>Zonas configurables desde operaciones</h2>
-          <div className="zones">{coverageZones.map((zone) => <span key={zone}>{zone}</span>)}</div>
+          <p className="eyebrow">Testimonios</p>
+          <h2>Opiniones de clientes</h2>
         </div>
+      </div>
+      <div className="testimonial-grid">
+        {["Testimonio pendiente de cliente real.", "Aquí se mostrará la opinión de clientes satisfechos.", "Espacio reservado para una reseña verificada."].map((text) => (
+          <article className="testimonial-card reveal" key={text}>
+            <div className="stars" aria-label="Espacio para calificación">
+              <Star size={17} /><Star size={17} /><Star size={17} /><Star size={17} /><Star size={17} />
+            </div>
+            <p>{text}</p>
+            <span>Reemplazar por testimonio real</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FinalCTA() {
+  return (
+    <section className="final-cta reveal">
+      <p className="eyebrow">Cotiza fácil por WhatsApp</p>
+      <h2>¿Listo para tener un espacio limpio, fresco y ordenado?</h2>
+      <p>Solicita una cotización rápida por WhatsApp y cuéntanos qué tipo de limpieza necesitas.</p>
+      <a className="primary" href={whatsappUrl} target="_blank" rel="noreferrer">
+        <PhoneCall size={19} /> Cotizar por WhatsApp
+      </a>
+    </section>
+  );
+}
+
+function FAQSection() {
+  return (
+    <section className="section">
+      <div className="section-heading reveal">
         <div>
-          <p className="eyebrow">Confianza</p>
-          <h2>Procesos verificables</h2>
-          <p>El sistema evita promesas no comprobadas: documentos, polizas, capacitaciones y consentimientos deben cargarse antes de mostrarse como evidencia comercial.</p>
-        </div>
-      </section>
-
-      <QuoteForm />
-
-      <section className="section">
-        <div className="section-heading">
           <p className="eyebrow">FAQ</p>
           <h2>Preguntas frecuentes</h2>
         </div>
-        <div className="faq-list">
-          {faqs.map(([question, answer]) => (
-            <details key={question}>
-              <summary>{question}</summary>
-              <p>{answer}</p>
-            </details>
-          ))}
-        </div>
-      </section>
-    </main>
+      </div>
+      <div className="faq-list">
+        {faqs.map(([question, answer]) => (
+          <details key={question} className="reveal">
+            <summary>{question}</summary>
+            <p>{answer}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="footer">
+      <div>
+        <button className="brand footer-brand" aria-label="Pacífica Cleaning">
+          <span className="brand-mark">PC</span>
+          <span>
+            <strong>PACÍFICA</strong>
+            <small>Cleaning</small>
+          </span>
+        </button>
+        <p>Limpieza profesional con atención al detalle para hogares, Airbnb y propiedades vacacionales en Guanacaste.</p>
+      </div>
+      <div>
+        <h3>Servicios</h3>
+        <a href="#servicios">Residencial</a>
+        <a href="#servicios">Profunda</a>
+        <a href="#airbnb">Airbnb</a>
+        <a href="#servicios">Oficinas</a>
+      </div>
+      <div>
+        <h3>Zona de atención</h3>
+        <p>Tempate, Brasilito, Flamingo, Potrero, Huacas, Tamarindo y zonas cercanas.</p>
+      </div>
+      <div>
+        <h3>Contacto</h3>
+        <a href={whatsappUrl} target="_blank" rel="noreferrer">WhatsApp</a>
+        <a href="#cotizar">Formulario de cotización</a>
+        <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>Volver arriba</button>
+      </div>
+      <p className="copyright">© {new Date().getFullYear()} Pacífica Cleaning. Derechos reservados.</p>
+    </footer>
+  );
+}
+
+function WhatsAppButton() {
+  return (
+    <a className="whatsapp-float" href={whatsappUrl} target="_blank" rel="noreferrer" aria-label="Cotizar por WhatsApp">
+      <MessageCircle size={24} />
+    </a>
   );
 }
 

@@ -1,5 +1,7 @@
 PYTHON ?= python3.12
 VENV ?= backend/.venv
+HOST ?= 0.0.0.0
+PORT ?= 8001
 PIP := $(VENV)/bin/pip
 DJANGO := cd backend && . .venv/bin/activate && python manage.py
 
@@ -28,7 +30,7 @@ admin:
 	$(DJANGO) bootstrap_system --email admin@pacifica.local --password "Cambiar-Esto-123!"
 
 run:
-	$(DJANGO) runserver 0.0.0.0:8000
+	$(DJANGO) runserver $(HOST):$(PORT)
 
 test:
 	$(DJANGO) test

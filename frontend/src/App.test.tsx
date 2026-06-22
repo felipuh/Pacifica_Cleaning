@@ -5,7 +5,8 @@ import { App } from "./App";
 describe("App", () => {
   it("renders public Pacifica Cleaning landing", () => {
     render(<App />);
-    expect(screen.getAllByText("Pacifica Cleaning")[0]).toBeInTheDocument();
-    expect(screen.getByText("Solicitar cotizacion")).toBeInTheDocument();
+    expect(screen.getAllByText("PACÍFICA")[0]).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /limpieza profesional para hogares/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /solicitar cotización/i })).toBeInTheDocument();
   });
 });
