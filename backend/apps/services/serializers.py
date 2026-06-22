@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.operations.models import WorkOrder
+
 from .models import PriceVersion, Quote, QuoteLine, Service
 
 
@@ -75,3 +77,34 @@ class QuoteSerializer(serializers.ModelSerializer):
         instance.recalculate()
         instance.save(update_fields=["subtotal", "tax", "total", "margin_estimate", "updated_at"])
         return instance
+
+
+class ConvertQuoteToWorkOrderSerializer(serializers.Serializer):
+    scheduled_start = serializers.DateTimeField()
+    scheduled_end = serializers.DateTimeField()
+    route_zone = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    travel_minutes = serializers.IntegerField(required=False, min_value=0, default=0)
+    checklist_notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        quote = self.context["quote"]
+        if quote.status != Quote.Status.ACCEPTED:
+            raise serializers.ValidationError("Solo una cotizacion aceptada puede convertirse en orden de servicio.")
+        if hasattr(quote, "work_order"):
+            raise serializers.ValidationError("Esta cotizacion ya tiene una orden de servicio.")
+        if attrs["scheduled_end"] <= attrs["scheduled_start"]:
+            raise serializers.ValidationError("La hora final debe ser posterior a la inicial.")
+        return attrs
+
+    def save(self, **kwargs):
+        quote = self.context["quote"]
+        return WorkOrder.objects.create(
+            quote=quote,
+            customer=quote.customer,
+            property=quote.property,
+            scheduled_start=self.validated_data["scheduled_start"],
+            scheduled_end=self.validated_data["scheduled_end"],
+            route_zone=self.validated_data.get("route_zone", quote.property.zone),
+            travel_minutes=self.validated_data.get("travel_minutes", 0),
+            checklist_notes=self.validated_data.get("checklist_notes", ""),
+        )

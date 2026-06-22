@@ -1,0 +1,14 @@
+[project]
+name = "pacifica-cleaning"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+description = "Django-only MVP for Pacifica Cleaning operations."
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.coverage.run]
+source = ["backend"]
+omit = ["*/migrations/*", "*/tests/*"]
+

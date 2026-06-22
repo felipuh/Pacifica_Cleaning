@@ -1,0 +1,43 @@
+{% load static %}
+<!doctype html>
+<html lang="{{ language }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pacifica Cleaning{% endblock %}</title>
+  <meta name="description" content="Pacifica Cleaning ofrece servicios de limpieza residencial, profunda, recurrente y para propiedades vacacionales en Guanacaste.">
+  <link rel="stylesheet" href="{% static 'css/public.css' %}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="{% url 'public_site:home' %}?lang={{ language }}">Pacifica Cleaning</a>
+    <nav aria-label="Main navigation">
+      <a href="{% url 'public_site:services' %}?lang={{ language }}">{% if is_en %}Services{% else %}Servicios{% endif %}</a>
+      <a href="{% url 'public_site:zones' %}?lang={{ language }}">{% if is_en %}Areas{% else %}Zonas{% endif %}</a>
+      <a href="{% url 'public_site:faq' %}?lang={{ language }}">FAQ</a>
+      <a href="{% url 'public_site:policies' %}?lang={{ language }}">{% if is_en %}Policies{% else %}Politicas{% endif %}</a>
+      <a class="button small" href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Quote{% else %}Cotizar{% endif %}</a>
+    </nav>
+    <div class="language-switch">
+      <a href="{{ request.path }}?lang=es">ES</a>
+      <a href="{{ request.path }}?lang=en">EN</a>
+    </div>
+  </header>
+
+  {% if messages %}
+    <div class="messages" role="status">
+      {% for message in messages %}<p>{{ message }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <p>Pacifica Cleaning · Tempate, Guanacaste · admin@pacificacleaning.cr</p>
+    <a href="/admin/">Admin</a>
+  </footer>
+</body>
+</html>
+

@@ -1,8 +1,12 @@
-from celery import shared_task
 from django.core.mail import send_mail
 from django.utils import timezone
 
 from .models import NotificationLog, NotificationTemplate
+
+try:
+    from celery import shared_task
+except ImportError:
+    from apps.core.optional_celery import shared_task
 
 
 @shared_task(bind=True, max_retries=3)

@@ -4,8 +4,9 @@ from reportlab.pdfgen import canvas
 from rest_framework import decorators, response, viewsets
 
 from apps.core.permissions import ADMIN_ROLES, READ_ONLY_ROLES, SALES_ROLES, RoleActionPermission
+from apps.operations.serializers import WorkOrderSerializer
 from .models import PriceVersion, Quote, Service
-from .serializers import PriceVersionSerializer, QuoteSerializer, ServiceSerializer
+from .serializers import ConvertQuoteToWorkOrderSerializer, PriceVersionSerializer, QuoteSerializer, ServiceSerializer
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -41,6 +42,7 @@ class QuoteViewSet(viewsets.ModelViewSet):
         "partial_update": SALES_ROLES,
         "destroy": ADMIN_ROLES,
         "accept": SALES_ROLES,
+        "convert_to_work_order": SALES_ROLES,
         "pdf": SALES_ROLES,
     }
 
@@ -49,6 +51,14 @@ class QuoteViewSet(viewsets.ModelViewSet):
         quote = self.get_object()
         quote.accept()
         return response.Response(self.get_serializer(quote).data)
+
+    @decorators.action(detail=True, methods=["post"], url_path="convert-to-work-order")
+    def convert_to_work_order(self, request, pk=None):
+        quote = self.get_object()
+        serializer = ConvertQuoteToWorkOrderSerializer(data=request.data, context={"quote": quote})
+        serializer.is_valid(raise_exception=True)
+        work_order = serializer.save()
+        return response.Response(WorkOrderSerializer(work_order, context={"request": request}).data, status=201)
 
     @decorators.action(detail=True, methods=["get"])
     def pdf(self, request, pk=None):

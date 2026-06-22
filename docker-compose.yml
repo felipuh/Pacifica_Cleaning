@@ -29,6 +29,11 @@ services:
       context: .
       dockerfile: infra/Dockerfile.backend
     env_file: .env
+    environment:
+      DATABASE_URL: postgres://pacifica:pacifica_dev_password@db:5432/pacifica
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
     command: >
       sh -c "python manage.py migrate &&
              python manage.py seed_initial_data &&
@@ -47,6 +52,12 @@ services:
       context: .
       dockerfile: infra/Dockerfile.backend
     env_file: .env
+    profiles: ["async"]
+    environment:
+      DATABASE_URL: postgres://pacifica:pacifica_dev_password@db:5432/pacifica
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
     command: celery -A pacifica worker --loglevel=INFO
     volumes:
       - media_data:/app/media
@@ -58,6 +69,12 @@ services:
       context: .
       dockerfile: infra/Dockerfile.backend
     env_file: .env
+    profiles: ["async"]
+    environment:
+      DATABASE_URL: postgres://pacifica:pacifica_dev_password@db:5432/pacifica
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
     command: celery -A pacifica beat --loglevel=INFO
     depends_on:
       - api
@@ -66,6 +83,7 @@ services:
     build:
       context: .
       dockerfile: infra/Dockerfile.frontend
+    profiles: ["legacy-frontend"]
     volumes:
       - frontend_dist:/usr/share/nginx/html
 
@@ -80,7 +98,6 @@ services:
       - media_data:/var/www/media:ro
     depends_on:
       - api
-      - frontend
 
 volumes:
   postgres_data:

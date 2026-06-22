@@ -4,19 +4,23 @@ import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-env = environ.Env(
-    DJANGO_DEBUG=(bool, False),
-    DJANGO_SECURE_SSL_REDIRECT=(bool, True),
-)
+env = environ.Env(DJANGO_ENV=(str, "local"))
 environ.Env.read_env(BASE_DIR.parent / ".env")
 
 APP_ENV = env("DJANGO_ENV", default=env("ENVIRONMENT", default="local")).lower()
+IS_PRODUCTION = APP_ENV == "production"
 
 SECRET_KEY = env("DJANGO_SECRET_KEY", default="unsafe-local-development-key-change-me")
-DEBUG = env("DJANGO_DEBUG")
+DEBUG = env.bool("DJANGO_DEBUG", default=not IS_PRODUCTION)
 ENVIRONMENT = env("ENVIRONMENT", default="local")
 
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+if IS_PRODUCTION and SECRET_KEY == "unsafe-local-development-key-change-me":
+    raise RuntimeError("DJANGO_SECRET_KEY must be set when DJANGO_ENV=production")
+
+default_hosts = [] if IS_PRODUCTION else ["localhost", "127.0.0.1", "testserver"]
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=default_hosts)
+if IS_PRODUCTION and not ALLOWED_HOSTS:
+    raise RuntimeError("DJANGO_ALLOWED_HOSTS must be set when DJANGO_ENV=production")
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[env("FRONTEND_ORIGIN", default="http://localhost")])
 CORS_ALLOW_CREDENTIALS = True
@@ -31,6 +35,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "drf_spectacular",
+    "apps.public_site",
     "apps.accounts",
     "apps.core",
     "apps.crm",
@@ -75,7 +80,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "pacifica.wsgi.application"
 
-DATABASES = {"default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")}
+DATABASES = {
+    "default": env.db(
+        "DATABASE_URL",
+        default="postgres://pacifica:pacifica_dev_password@localhost:5432/pacifica",
+    )
+}
 
 AUTH_USER_MODEL = "accounts.User"
 
@@ -94,6 +104,7 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -109,6 +120,9 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/hour",
+    },
 }
 
 SPECTACULAR_SETTINGS = {
@@ -122,7 +136,7 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
-SECURE_SSL_REDIRECT = env("DJANGO_SECURE_SSL_REDIRECT")
+SECURE_SSL_REDIRECT = env("DJANGO_SECURE_SSL_REDIRECT", default=IS_PRODUCTION)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
@@ -154,6 +168,13 @@ CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
 
 EMAIL_HOST = env("EMAIL_HOST", default="localhost")
 EMAIL_PORT = env.int("EMAIL_PORT", default=1025)
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.smtp.EmailBackend" if IS_PRODUCTION else "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=IS_PRODUCTION)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@pacificacleaning.cr")
 ADMIN_EMAIL = env("ADMIN_EMAIL", default="admin@pacificacleaning.cr")
 

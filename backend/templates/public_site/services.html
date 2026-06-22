@@ -1,0 +1,17 @@
+{% extends "public_site/base.html" %}
+{% block title %}Pacifica Cleaning | {% if is_en %}Services{% else %}Servicios{% endif %}{% endblock %}
+{% block content %}
+<section class="page">
+  <h1>{% if is_en %}Services{% else %}Servicios{% endif %}</h1>
+  <p>{% if is_en %}Each quote is adjusted by property, scope, frequency and operational complexity.{% else %}Cada cotizacion se ajusta por propiedad, alcance, frecuencia y complejidad operativa.{% endif %}</p>
+  <div class="grid">
+    {% for service in services %}
+      <article class="card">
+        <h2>{% if is_en %}{{ service.name_en }}{% else %}{{ service.name_es }}{% endif %}</h2>
+        <p>{% if is_en %}{{ service.description_en|default:service.description_es }}{% else %}{{ service.description_es }}{% endif %}</p>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+

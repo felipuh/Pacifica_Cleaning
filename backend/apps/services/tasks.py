@@ -1,4 +1,7 @@
-from celery import shared_task
+try:
+    from celery import shared_task
+except ImportError:
+    from apps.core.optional_celery import shared_task
 
 
 @shared_task

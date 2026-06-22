@@ -1,0 +1,12 @@
+{% extends "public_site/base.html" %}
+{% block title %}Pacifica Cleaning | {% if is_en %}Service areas{% else %}Zonas de servicio{% endif %}{% endblock %}
+{% block content %}
+<section class="page">
+  <h1>{% if is_en %}Service areas{% else %}Zonas de servicio{% endif %}</h1>
+  <p>{% if is_en %}Coverage starts in Tempate and expands by route capacity.{% else %}La cobertura inicia en Tempate y crece segun capacidad de ruta.{% endif %}</p>
+  <ul class="pill-list">
+    {% for zone in zones %}<li>{{ zone }}</li>{% endfor %}
+  </ul>
+</section>
+{% endblock %}
+

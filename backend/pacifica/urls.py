@@ -35,6 +35,7 @@ router.register("coupons", CouponViewSet)
 router.register("notification-templates", NotificationTemplateViewSet)
 
 urlpatterns = [
+    path("", include("apps.public_site.urls")),
     path("admin/", admin.site.urls),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

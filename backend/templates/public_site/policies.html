@@ -1,0 +1,10 @@
+{% extends "public_site/base.html" %}
+{% block title %}Pacifica Cleaning | {% if is_en %}Policies{% else %}Politicas{% endif %}{% endblock %}
+{% block content %}
+<section class="page">
+  <h1>{% if is_en %}Policies{% else %}Politicas{% endif %}</h1>
+  <p>{% if is_en %}We collect only the information needed to answer requests, prepare quotes and coordinate services. Legal texts should be reviewed before production launch.{% else %}Recolectamos solo la informacion necesaria para responder solicitudes, preparar cotizaciones y coordinar servicios. Los textos legales deben revisarse antes del lanzamiento productivo.{% endif %}</p>
+  <p>{% if is_en %}Photos, keys, alarm notes and access details are treated as sensitive operational data.{% else %}Fotografias, llaves, notas de alarma y accesos se tratan como datos operativos sensibles.{% endif %}</p>
+</section>
+{% endblock %}
+

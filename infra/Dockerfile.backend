@@ -11,9 +11,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential libpq-dev file \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt /tmp/requirements.txt
+COPY backend/requirements.txt backend/requirements-async.txt /tmp/
 RUN pip install --no-cache-dir --upgrade pip==25.1.1 \
-    && pip install --no-cache-dir -r /tmp/requirements.txt
+    && pip install --no-cache-dir -r /tmp/requirements-async.txt
 
 COPY backend /app
 RUN python manage.py collectstatic --noinput || true \

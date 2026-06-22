@@ -14,6 +14,7 @@ from apps.operations.serializers import WorkOrderSerializer
 from apps.operations.models import Assignment, WorkOrder
 from apps.people.models import WorkerProfile
 from apps.services.models import Quote, QuoteLine, Service
+from apps.services.serializers import ConvertQuoteToWorkOrderSerializer
 
 
 class BusinessRulesTests(TestCase):
@@ -128,3 +129,36 @@ class BusinessRulesTests(TestCase):
             }
         )
         self.assertFalse(serializer.is_valid())
+
+    def test_accepted_quote_converts_to_work_order_once(self):
+        quote = Quote.objects.create(
+            customer=self.customer,
+            property=self.property,
+            status=Quote.Status.ACCEPTED,
+            valid_until=timezone.localdate() + timedelta(days=15),
+        )
+        start = timezone.now() + timedelta(days=2)
+        serializer = ConvertQuoteToWorkOrderSerializer(
+            data={
+                "scheduled_start": start.isoformat(),
+                "scheduled_end": (start + timedelta(hours=3)).isoformat(),
+                "route_zone": "Tempate",
+            },
+            context={"quote": quote},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        work_order = serializer.save()
+
+        self.assertEqual(work_order.quote, quote)
+        self.assertEqual(work_order.customer, quote.customer)
+        self.assertEqual(work_order.property, quote.property)
+
+        duplicate = ConvertQuoteToWorkOrderSerializer(
+            data={
+                "scheduled_start": start.isoformat(),
+                "scheduled_end": (start + timedelta(hours=3)).isoformat(),
+            },
+            context={"quote": quote},
+        )
+        self.assertFalse(duplicate.is_valid())

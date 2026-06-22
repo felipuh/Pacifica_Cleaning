@@ -1,0 +1,20 @@
+{% extends "public_site/base.html" %}
+{% block title %}Pacifica Cleaning | FAQ{% endblock %}
+{% block content %}
+<section class="page">
+  <h1>{% if is_en %}Frequently asked questions{% else %}Preguntas frecuentes{% endif %}</h1>
+  <details open>
+    <summary>{% if is_en %}How are quotes prepared?{% else %}Como se preparan las cotizaciones?{% endif %}</summary>
+    <p>{% if is_en %}We review the requested service, property details, estimated time and frequency before confirming a price.{% else %}Revisamos el servicio solicitado, datos de la propiedad, tiempo estimado y frecuencia antes de confirmar precio.{% endif %}</p>
+  </details>
+  <details>
+    <summary>{% if is_en %}Do you handle vacation rentals?{% else %}Atienden propiedades vacacionales?{% endif %}</summary>
+    <p>{% if is_en %}Yes. Vacation rentals can include turnover notes, checklists and scheduling windows.{% else %}Si. Las propiedades vacacionales pueden incluir notas de cambio, checklists y ventanas de agenda.{% endif %}</p>
+  </details>
+  <details>
+    <summary>{% if is_en %}Are access details private?{% else %}Los datos de acceso son privados?{% endif %}</summary>
+    <p>{% if is_en %}Yes. Access instructions and alarm notes are masked for roles without permission.{% else %}Si. Las instrucciones de acceso y notas de alarma se enmascaran para roles sin permiso.{% endif %}</p>
+  </details>
+</section>
+{% endblock %}
+

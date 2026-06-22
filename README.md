@@ -1,56 +1,152 @@
-# Pacifica Cleaning Platform
+# Pacifica Cleaning
 
-Plataforma web para Pacifica Cleaning, empresa de servicios de limpieza en Tempate, Guanacaste, Costa Rica.
+Plataforma operativa bilingue para Pacifica Cleaning. La ruta actual prioriza un monolito Django simple: sitio publico, Django Admin, API interna minima y PostgreSQL.
 
-La solucion se organiza como un monolito modular:
+## Diagnostico breve
 
-- `backend/`: Django 5, Django REST Framework, Celery, PostgreSQL y Redis.
-- `frontend/`: React 19, TypeScript y Vite.
-- `infra/`: Docker Compose, Nginx, scripts de despliegue, backups y restauracion.
-- `docs/`: requisitos, arquitectura, reglas de negocio, seguridad, manuales y decisiones tecnicas.
+- El repositorio tenia backend Django modular, frontend React/Vite, Docker, Nginx, Redis y Celery.
+- El backend ya incluia modelos utiles para CRM, propiedades, servicios, cotizaciones, agenda, finanzas e inventario.
+- El frontend separado aumentaba el costo de despliegue del MVP y duplicaba validaciones que ya existen en Django/DRF.
+- Redis y Celery no son necesarios para captar leads, administrar catalogo/cotizaciones ni operar agenda inicial.
 
-## Versiones base
+## Arquitectura objetivo
 
-Linea base unificada para facilitar migraciones VPS entre proyectos:
+Django-only para el MVP: Django sirve paginas publicas con templates, Django Admin opera el backoffice, DRF queda para API interna, PostgreSQL es la base principal y Celery/Redis quedan como opcion de fase posterior.
 
-- Python `3.12.x`: baseline backend comun con guanacaste-real-esta.
-- Django `5.0.x`: baseline backend comun con guanacaste-real-esta y orion_construct.
-- Django REST Framework `3.15.x`: baseline comun de API.
-- React `19.2.1`: parche estable de React 19.2.
-- TypeScript `6.0.3`: release estable.
-- Vite `8.0.16`: version estable; requiere Node `20.19+` o `22.12+`.
-- Node.js `24.17.0`: LTS oficial actual.
-- PostgreSQL `16`: baseline comun en docker-compose.
-- Redis `6/7/8`: soportado; en compose local se mantiene Redis 8.
-- Celery `5.6.3`: mantenido.
-- Nginx `1.30.x`: mantenido.
-- Ubuntu Server `26.04 LTS`: LTS vigente con soporte estandar hasta mayo de 2031.
+## Funcionalidad incluida
 
-## Arranque local con Docker
+- Sitio publico bilingue: inicio, servicios, zonas, contacto, FAQ y politicas.
+- Formulario publico de leads con CSRF, honeypot y validacion de backend.
+- Django Admin para leads, clientes, propiedades, servicios, cotizaciones y ordenes de servicio.
+- Modelos base existentes para CRM, catalogo, cotizaciones, agenda, finanzas e inventario.
+- Health check en `/api/v1/health/`.
+- Docker conservado como opcion, pero no como requisito de operacion.
 
-```powershell
-Copy-Item .env.example .env
+## Arranque local sin Docker
+
+Requisitos:
+
+- Python 3.12
+- PostgreSQL 16 o compatible
+
+El repositorio fija la linea base en `.python-version`, `runtime.txt` y `pyproject.toml`. En Rocky/RHEL, instala Python 3.12 con:
+
+```bash
+sudo dnf install -y python3.12 python3.12-pip
+```
+
+En Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y python3.12 python3.12-venv
+```
+
+Crear base local:
+
+```bash
+createdb pacifica
+createuser pacifica
+psql -c "ALTER USER pacifica WITH PASSWORD 'pacifica_dev_password';"
+psql -c "GRANT ALL PRIVILEGES ON DATABASE pacifica TO pacifica;"
+```
+
+Preparar entorno:
+
+```bash
+cp .env.example .env
+make install
+make migrate
+make seed
+make admin
+make run
+```
+
+Abrir:
+
+- Sitio publico: `http://localhost:8000/`
+- Contacto/leads: `http://localhost:8000/contacto/`
+- Admin: `http://localhost:8000/admin/`
+- API docs: `http://localhost:8000/api/docs/`
+- Health: `http://localhost:8000/api/v1/health/`
+
+## Validacion
+
+```bash
+make check
+make test
+DJANGO_ENV=production DJANGO_DEBUG=false DJANGO_SECRET_KEY="replace-with-a-long-production-secret" DJANGO_ALLOWED_HOSTS=example.com DATABASE_URL="postgres://pacifica:pacifica_dev_password@localhost:5432/pacifica" make deploy-check
+```
+
+En esta estacion solo hay Python 3.9, por debajo del baseline Django 5/Python 3.12, asi que las pruebas completas deben correrse en un entorno Python 3.12.
+
+## Flujo operativo minimo
+
+Convertir una cotizacion aceptada en orden de servicio:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/quotes/<quote-id>/convert-to-work-order/ \
+  -H "Content-Type: application/json" \
+  -H "X-CSRFToken: <csrf-token>" \
+  --cookie "sessionid=<session-id>; csrftoken=<csrf-token>" \
+  -d '{"scheduled_start":"2026-07-01T08:00:00-06:00","scheduled_end":"2026-07-01T11:00:00-06:00","route_zone":"Tempate"}'
+```
+
+La API rechaza cotizaciones no aceptadas, fechas invalidas y conversiones duplicadas.
+
+## Produccion simple en VPS
+
+Instalar dependencias del sistema:
+
+```bash
+sudo apt update
+sudo apt install -y python3.12 python3.12-venv postgresql nginx
+```
+
+Variables minimas:
+
+```bash
+DJANGO_ENV=production
+DJANGO_DEBUG=false
+DJANGO_SECRET_KEY=<secreto-largo>
+DJANGO_ALLOWED_HOSTS=pacificacleaning.cr,www.pacificacleaning.cr
+DJANGO_CSRF_TRUSTED_ORIGINS=https://pacificacleaning.cr,https://www.pacificacleaning.cr
+DATABASE_URL=postgres://pacifica:<password>@127.0.0.1:5432/pacifica
+DJANGO_SECURE_SSL_REDIRECT=true
+```
+
+Proceso web:
+
+```bash
+cd backend
+source .venv/bin/activate
+python manage.py migrate
+python manage.py collectstatic --noinput
+gunicorn pacifica.wsgi:application --bind 127.0.0.1:8000 --workers 2 --timeout 60
+```
+
+Nginx debe servir `/static/` desde `backend/staticfiles` y proxyear el resto a `127.0.0.1:8000`.
+
+## Docker opcional
+
+```bash
+cp .env.example .env
 docker compose up --build
 ```
 
-Luego abrir:
+El compose usa PostgreSQL y Nginx. Celery worker/beat solo arrancan con:
 
-- Sitio y app: `http://localhost`
-- API: `http://localhost/api/`
-- Admin Django de emergencia: `http://localhost/admin/`
-
-Crear usuario inicial:
-
-```powershell
-docker compose exec api python manage.py bootstrap_system --email admin@pacifica.local --password "Cambiar-Esto-123!"
+```bash
+docker compose --profile async up --build
 ```
 
-## Verificacion
+El frontend React queda bajo el perfil `legacy-frontend`; no es parte del MVP operativo.
 
-```powershell
-docker compose exec api python manage.py test
-docker compose exec frontend npm run test -- --run
-docker compose exec frontend npm run build
-```
+## Fase posterior
 
-En esta estacion no habia `python`, `node`, `npm` ni `docker` en PATH; por eso la verificacion ejecutable debe correrse en Docker o VPS.
+- Revisar textos legales con abogado antes de produccion.
+- Integrar correo transaccional real y WhatsApp Cloud API oficial.
+- Generar PDF de cotizacion con plantilla formal y branding definitivo.
+- Agregar una accion visual en Django Admin para convertir cotizacion aceptada con seleccion de horario.
+- Reintroducir Celery/Redis cuando haya recordatorios, correos masivos, backups asincronos o reportes pesados.
+- Decidir si el frontend React se elimina definitivamente o se reserva para portal cliente.

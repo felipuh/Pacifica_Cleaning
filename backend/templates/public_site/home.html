@@ -1,0 +1,30 @@
+{% extends "public_site/base.html" %}
+{% block title %}Pacifica Cleaning | {% if is_en %}Cleaning services in Guanacaste{% else %}Limpieza en Guanacaste{% endif %}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{% if is_en %}Tempate and nearby Guanacaste areas{% else %}Tempate y zonas cercanas de Guanacaste{% endif %}</p>
+    <h1>{% if is_en %}Reliable cleaning for homes, offices and vacation rentals.{% else %}Limpieza confiable para casas, oficinas y propiedades vacacionales.{% endif %}</h1>
+    <p>{% if is_en %}Request a quote, schedule service and keep operational details organized from one Django-powered platform.{% else %}Solicite una cotizacion, coordine agenda y mantenga la operacion organizada desde una plataforma Django simple.{% endif %}</p>
+    <a class="button" href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Request a quote{% else %}Solicitar cotizacion{% endif %}</a>
+  </div>
+</section>
+
+<section class="band">
+  <h2>{% if is_en %}Core services{% else %}Servicios principales{% endif %}</h2>
+  <div class="grid">
+    {% for service in services %}
+      <article class="card">
+        <h3>{% if is_en %}{{ service.name_en }}{% else %}{{ service.name_es }}{% endif %}</h3>
+        <p>{% if is_en %}{{ service.description_en|default:service.description_es }}{% else %}{{ service.description_es }}{% endif %}</p>
+      </article>
+    {% empty %}
+      <article class="card">
+        <h3>{% if is_en %}Residential cleaning{% else %}Limpieza residencial{% endif %}</h3>
+        <p>{% if is_en %}Initial catalog data can be loaded with the seed command.{% else %}El catalogo inicial se puede cargar con el comando de seed.{% endif %}</p>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
