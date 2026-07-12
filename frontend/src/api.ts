@@ -66,6 +66,14 @@ export async function getMe(): Promise<SessionUser> {
   return request("/api/auth/me/");
 }
 
+export async function logout(): Promise<void> {
+  const csrf = await ensureCsrf();
+  return request("/api/auth/logout/", {
+    method: "POST",
+    headers: { "X-CSRFToken": csrf }
+  });
+}
+
 export async function listResource<T>(resource: string): Promise<{ results: T[] }> {
   return request(`/api/v1/${resource}/`);
 }

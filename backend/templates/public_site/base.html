@@ -10,12 +10,17 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="{% url 'public_site:home' %}?lang={{ language }}">Pacifica Cleaning</a>
-    <nav aria-label="Main navigation">
+    <a class="brand" href="{% url 'public_site:home' %}?lang={{ language }}" aria-label="Pacifica Cleaning">
+      <span class="brand-mark">PC</span>
+      <span><strong>PACIFICA</strong><small>Cleaning</small></span>
+    </a>
+    <nav aria-label="Main navigation" class="main-nav">
+      <a href="{% url 'public_site:home' %}?lang={{ language }}">{% if is_en %}Home{% else %}Inicio{% endif %}</a>
       <a href="{% url 'public_site:services' %}?lang={{ language }}">{% if is_en %}Services{% else %}Servicios{% endif %}</a>
+      <a href="{% url 'public_site:home' %}?lang={{ language }}#airbnb">Airbnb</a>
+      <a href="{% url 'public_site:home' %}?lang={{ language }}#proceso">{% if is_en %}Process{% else %}Proceso{% endif %}</a>
       <a href="{% url 'public_site:zones' %}?lang={{ language }}">{% if is_en %}Areas{% else %}Zonas{% endif %}</a>
       <a href="{% url 'public_site:faq' %}?lang={{ language }}">FAQ</a>
-      <a href="{% url 'public_site:policies' %}?lang={{ language }}">{% if is_en %}Policies{% else %}Politicas{% endif %}</a>
       <a class="button small" href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Quote{% else %}Cotizar{% endif %}</a>
     </nav>
     <div class="language-switch">
@@ -35,9 +40,30 @@
   </main>
 
   <footer class="site-footer">
-    <p>Pacifica Cleaning · Tempate, Guanacaste · admin@pacificacleaning.cr</p>
-    <a href="/admin/">Admin</a>
+    <div>
+      <a class="brand footer-brand" href="{% url 'public_site:home' %}?lang={{ language }}" aria-label="Pacifica Cleaning">
+        <span class="brand-mark">PC</span>
+        <span><strong>PACIFICA</strong><small>Cleaning</small></span>
+      </a>
+      <p>{% if is_en %}Professional cleaning with attention to detail for homes, Airbnb and vacation rentals in Guanacaste.{% else %}Limpieza profesional con atencion al detalle para hogares, Airbnb y propiedades vacacionales en Guanacaste.{% endif %}</p>
+    </div>
+    <div>
+      <h3>{% if is_en %}Services{% else %}Servicios{% endif %}</h3>
+      <a href="{% url 'public_site:services' %}?lang={{ language }}">{% if is_en %}Residential{% else %}Residencial{% endif %}</a>
+      <a href="{% url 'public_site:services' %}?lang={{ language }}">{% if is_en %}Deep cleaning{% else %}Limpieza profunda{% endif %}</a>
+      <a href="{% url 'public_site:home' %}?lang={{ language }}#airbnb">Airbnb</a>
+    </div>
+    <div>
+      <h3>{% if is_en %}Service area{% else %}Zona de atencion{% endif %}</h3>
+      <p>Tempate, Brasilito, Flamingo, Potrero, Huacas, Tamarindo y zonas cercanas.</p>
+    </div>
+    <div>
+      <h3>{% if is_en %}Contact{% else %}Contacto{% endif %}</h3>
+      <a href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Quote form{% else %}Formulario de cotizacion{% endif %}</a>
+      <a href="/admin/">Admin</a>
+      <a href="{% url 'public_site:policies' %}?lang={{ language }}">{% if is_en %}Policies{% else %}Politicas{% endif %}</a>
+    </div>
+    <p class="copyright">© {% now "Y" %} Pacifica Cleaning. {% if is_en %}All rights reserved.{% else %}Derechos reservados.{% endif %}</p>
   </footer>
 </body>
 </html>
-

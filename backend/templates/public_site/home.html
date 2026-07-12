@@ -1,30 +1,144 @@
 {% extends "public_site/base.html" %}
-{% block title %}Pacifica Cleaning | {% if is_en %}Cleaning services in Guanacaste{% else %}Limpieza en Guanacaste{% endif %}{% endblock %}
+{% block title %}Pacifica Cleaning | {% if is_en %}Cleaning services in Guanacaste{% else %}Limpieza profesional en Guanacaste{% endif %}{% endblock %}
 {% block content %}
 <section class="hero">
-  <div>
-    <p class="eyebrow">{% if is_en %}Tempate and nearby Guanacaste areas{% else %}Tempate y zonas cercanas de Guanacaste{% endif %}</p>
-    <h1>{% if is_en %}Reliable cleaning for homes, offices and vacation rentals.{% else %}Limpieza confiable para casas, oficinas y propiedades vacacionales.{% endif %}</h1>
-    <p>{% if is_en %}Request a quote, schedule service and keep operational details organized from one Django-powered platform.{% else %}Solicite una cotizacion, coordine agenda y mantenga la operacion organizada desde una plataforma Django simple.{% endif %}</p>
-    <a class="button" href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Request a quote{% else %}Solicitar cotizacion{% endif %}</a>
+  <div class="hero-copy reveal">
+    <p class="eyebrow">{% if is_en %}Tempate, Guanacaste{% else %}Tempate, Guanacaste{% endif %}</p>
+    <h1>{% if is_en %}Professional cleaning for homes and vacation rentals in Guanacaste{% else %}Limpieza profesional para hogares y propiedades vacacionales en Guanacaste{% endif %}</h1>
+    <p>{% if is_en %}We care for every space with detail, punctuality and trust. Ideal for homes, Airbnb, vacation rentals and family properties.{% else %}Cuidamos cada espacio con detalle, puntualidad y confianza. Ideal para casas, Airbnb, alquileres vacacionales y propiedades familiares.{% endif %}</p>
+    <div class="hero-actions">
+      <a class="button" href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Request a quote{% else %}Solicitar cotizacion{% endif %}</a>
+      <a class="button secondary" href="{% url 'public_site:services' %}?lang={{ language }}">{% if is_en %}View services{% else %}Ver servicios{% endif %}</a>
+    </div>
+    <div class="hero-badges" aria-label="{% if is_en %}Main benefits{% else %}Beneficios principales{% endif %}">
+      <span>{% if is_en %}Reliable service{% else %}Servicio confiable{% endif %}</span>
+      <span>{% if is_en %}WhatsApp attention{% else %}Atencion por WhatsApp{% endif %}</span>
+      <span>{% if is_en %}Airbnb ready{% else %}Ideal para Airbnb{% endif %}</span>
+      <span>{% if is_en %}Residential cleaning{% else %}Limpieza residencial{% endif %}</span>
+    </div>
+  </div>
+  <div class="hero-visual reveal delay-1">
+    <img src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=82" alt="{% if is_en %}Cleaning professional preparing a bright residential room{% else %}Profesional de limpieza preparando una sala residencial luminosa{% endif %}">
+    <div class="floating-card top">{% if is_en %}More than cleaning, peace of mind for your home.{% else %}Mas que limpieza, tranquilidad para tu hogar.{% endif %}</div>
+    <div class="floating-card bottom"><strong>24h</strong><span>{% if is_en %}Initial follow-up and clear coordination.{% else %}Seguimiento inicial y coordinacion clara.{% endif %}</span></div>
   </div>
 </section>
 
-<section class="band">
-  <h2>{% if is_en %}Core services{% else %}Servicios principales{% endif %}</h2>
-  <div class="grid">
+<section class="band services-band" id="servicios">
+  <div class="section-heading reveal">
+    <div>
+      <p class="eyebrow">{% if is_en %}Services{% else %}Servicios{% endif %}</p>
+      <h2>{% if is_en %}Cleaning solutions for homes, businesses and reservations.{% else %}Soluciones de limpieza listas para hogares, negocios y reservas.{% endif %}</h2>
+    </div>
+    <a class="section-link" href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Quote a service{% else %}Cotizar un servicio{% endif %}</a>
+  </div>
+  <div class="grid service-grid">
     {% for service in services %}
-      <article class="card">
+      <article class="card service-card reveal">
+        <span class="icon-chip">✦</span>
         <h3>{% if is_en %}{{ service.name_en }}{% else %}{{ service.name_es }}{% endif %}</h3>
         <p>{% if is_en %}{{ service.description_en|default:service.description_es }}{% else %}{{ service.description_es }}{% endif %}</p>
+        <a href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Request info{% else %}Solicitar informacion{% endif %}</a>
       </article>
     {% empty %}
-      <article class="card">
+      <article class="card service-card reveal">
+        <span class="icon-chip">✦</span>
         <h3>{% if is_en %}Residential cleaning{% else %}Limpieza residencial{% endif %}</h3>
-        <p>{% if is_en %}Initial catalog data can be loaded with the seed command.{% else %}El catalogo inicial se puede cargar con el comando de seed.{% endif %}</p>
+        <p>{% if is_en %}Clear routines for family homes, condos and occupied spaces.{% else %}Rutinas claras para casas familiares, condominios y espacios ocupados.{% endif %}</p>
+        <a href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Request info{% else %}Solicitar informacion{% endif %}</a>
       </article>
     {% endfor %}
   </div>
 </section>
-{% endblock %}
 
+<section class="benefits-band">
+  <div class="benefits-copy reveal">
+    <p class="eyebrow">{% if is_en %}Why choose us{% else %}Por que elegirnos{% endif %}</p>
+    <h2>{% if is_en %}Local, reliable and punctual service in Guanacaste.{% else %}Servicio local, confiable y puntual en Guanacaste.{% endif %}</h2>
+    <p>{% if is_en %}Clear processes and warm attention from the first message to the final follow-up.{% else %}Procesos claros y atencion humana desde el primer mensaje hasta el seguimiento final.{% endif %}</p>
+  </div>
+  <div class="benefits-grid">
+    <article class="benefit-item reveal">{% if is_en %}Punctual coordination{% else %}Puntualidad y coordinacion clara{% endif %}</article>
+    <article class="benefit-item reveal">{% if is_en %}Trustworthy team{% else %}Personal confiable{% endif %}</article>
+    <article class="benefit-item reveal">{% if is_en %}Quick WhatsApp attention{% else %}Atencion rapida por WhatsApp{% endif %}</article>
+    <article class="benefit-item reveal">{% if is_en %}Detailed cleaning{% else %}Limpieza detallada{% endif %}</article>
+    <article class="benefit-item reveal">{% if is_en %}Vacation rental ready{% else %}Ideal para propiedades vacacionales{% endif %}</article>
+    <article class="benefit-item reveal">{% if is_en %}Recurring plans{% else %}Planes recurrentes{% endif %}</article>
+  </div>
+</section>
+
+<section class="airbnb-section" id="airbnb">
+  <div class="airbnb-media reveal">
+    <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=82" alt="{% if is_en %}Bright vacation home ready for guests{% else %}Casa vacacional luminosa lista para huespedes{% endif %}" loading="lazy">
+  </div>
+  <div class="airbnb-copy reveal delay-1">
+    <p class="eyebrow">Airbnb</p>
+    <h2>{% if is_en %}Impeccable spaces for every visit, reservation or family.{% else %}Espacios impecables para cada visita, reserva o familia.{% endif %}</h2>
+    <p>{% if is_en %}We support hosts, property managers and real estate teams with cleaning between reservations, check-in preparation and basic incident reporting.{% else %}Apoyamos a anfitriones, administradores e inmobiliarias con limpieza entre reservas, preparacion antes del check-in y reporte basico de incidencias.{% endif %}</p>
+    <div class="feature-list">
+      <span>{% if is_en %}Turnover cleaning between check-out and check-in{% else %}Limpieza entre check-out y check-in{% endif %}</span>
+      <span>{% if is_en %}Basic visual review of the property{% else %}Revision visual basica del espacio{% endif %}</span>
+      <span>{% if is_en %}Authorized incident follow-up{% else %}Seguimiento de incidencias autorizadas{% endif %}</span>
+      <span>{% if is_en %}Recurring service before each reservation{% else %}Servicio recurrente antes de cada reserva{% endif %}</span>
+    </div>
+    <a class="button" href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Request a vacation rental plan{% else %}Solicitar plan para propiedades vacacionales{% endif %}</a>
+  </div>
+</section>
+
+<section class="band process-section" id="proceso">
+  <div class="section-heading reveal">
+    <div>
+      <p class="eyebrow">{% if is_en %}Process{% else %}Proceso{% endif %}</p>
+      <h2>{% if is_en %}Getting a quote is simple, clear and fast.{% else %}Cotizar es simple, claro y rapido.{% endif %}</h2>
+    </div>
+  </div>
+  <ol class="process-grid">
+    <li class="process-card reveal"><span>01</span><p>{% if is_en %}The client writes or sends the form.{% else %}El cliente escribe o envia el formulario.{% endif %}</p></li>
+    <li class="process-card reveal"><span>02</span><p>{% if is_en %}We collect space, location and service details.{% else %}Recopilamos informacion del espacio, ubicacion y servicio.{% endif %}</p></li>
+    <li class="process-card reveal"><span>03</span><p>{% if is_en %}We send a clear quote based on scope.{% else %}Enviamos una cotizacion clara segun el alcance.{% endif %}</p></li>
+    <li class="process-card reveal"><span>04</span><p>{% if is_en %}We schedule the service and access instructions.{% else %}Agendamos el servicio e instrucciones de acceso.{% endif %}</p></li>
+    <li class="process-card reveal"><span>05</span><p>{% if is_en %}We clean with attention to detail.{% else %}Realizamos la limpieza con atencion al detalle.{% endif %}</p></li>
+    <li class="process-card reveal"><span>06</span><p>{% if is_en %}We follow up for satisfaction and next services.{% else %}Damos seguimiento para satisfaccion y proximos servicios.{% endif %}</p></li>
+  </ol>
+</section>
+
+<section class="band trust-section">
+  <div class="reveal">
+    <p class="eyebrow">{% if is_en %}Initial coverage{% else %}Cobertura inicial{% endif %}</p>
+    <h2>{% if is_en %}Local attention from Tempate to key Guanacaste areas.{% else %}Atencion local desde Tempate hacia zonas clave de Guanacaste.{% endif %}</h2>
+    <ul class="pill-list">
+      <li>Tempate</li>
+      <li>Brasilito</li>
+      <li>Flamingo</li>
+      <li>Potrero</li>
+      <li>Huacas</li>
+      <li>Tamarindo</li>
+    </ul>
+  </div>
+  <div class="trust-card reveal delay-1">
+    <h3>{% if is_en %}We care for your home as if it were ours.{% else %}Cuidamos tu hogar como si fuera nuestro.{% endif %}</h3>
+    <p>{% if is_en %}Clear communication, consent for evidence and follow-up before, during and after the service.{% else %}Comunicacion clara, consentimiento para evidencias y seguimiento antes, durante y despues del servicio.{% endif %}</p>
+  </div>
+</section>
+
+<section class="band testimonials-section">
+  <div class="section-heading reveal">
+    <div>
+      <p class="eyebrow">{% if is_en %}Testimonials{% else %}Testimonios{% endif %}</p>
+      <h2>{% if is_en %}Client opinions{% else %}Opiniones de clientes{% endif %}</h2>
+    </div>
+  </div>
+  <div class="grid testimonial-grid">
+    <article class="card testimonial-card reveal"><p>{% if is_en %}Real client testimonial pending.{% else %}Testimonio pendiente de cliente real.{% endif %}</p><span>{% if is_en %}Replace with verified review{% else %}Reemplazar por testimonio real{% endif %}</span></article>
+    <article class="card testimonial-card reveal"><p>{% if is_en %}Satisfied client opinion will be shown here.{% else %}Aqui se mostrara la opinion de clientes satisfechos.{% endif %}</p><span>{% if is_en %}Replace with verified review{% else %}Reemplazar por testimonio real{% endif %}</span></article>
+    <article class="card testimonial-card reveal"><p>{% if is_en %}Space reserved for a verified review.{% else %}Espacio reservado para una resena verificada.{% endif %}</p><span>{% if is_en %}Replace with verified review{% else %}Reemplazar por testimonio real{% endif %}</span></article>
+  </div>
+</section>
+
+<section class="final-cta reveal">
+  <p class="eyebrow">{% if is_en %}Easy quote{% else %}Cotiza facil{% endif %}</p>
+  <h2>{% if is_en %}Ready for a clean, fresh and organized space?{% else %}Listo para tener un espacio limpio, fresco y ordenado?{% endif %}</h2>
+  <p>{% if is_en %}Request a quick quote and tell us what type of cleaning you need.{% else %}Solicita una cotizacion rapida y cuentanos que tipo de limpieza necesitas.{% endif %}</p>
+  <a class="button" href="{% url 'public_site:contact' %}?lang={{ language }}">{% if is_en %}Request quote{% else %}Solicitar cotizacion{% endif %}</a>
+</section>
+{% endblock %}

@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   Leaf,
   LogIn,
+  LogOut,
   Menu,
   MessageCircle,
   PhoneCall,
@@ -22,10 +23,111 @@ import {
   Users,
   X
 } from "lucide-react";
-import { createLead, getMe, listResource, login, SessionUser } from "./api";
+import { createLead, getMe, listResource, login, logout, SessionUser } from "./api";
 import { benefits, coverageZones, faqs, processSteps, services, whatsappUrl } from "./content";
 
 type View = "public" | "admin" | "policies";
+type ResourceRow = Record<string, unknown> & { id?: string; full_name?: string; name_es?: string; name?: string; title?: string; status?: string };
+type ModuleKey = "leads" | "customers" | "properties" | "services" | "quotes" | "work-orders" | "workers" | "payments" | "inventory-items";
+
+const adminModules: Array<{
+  key: ModuleKey;
+  label: string;
+  group: string;
+  endpoint: string;
+  icon: typeof Users;
+  description: string;
+  fields: string[];
+}> = [
+  {
+    key: "leads",
+    label: "Leads",
+    group: "CRM",
+    endpoint: "leads",
+    icon: Users,
+    description: "Prospectos, fuente comercial, consentimiento y seguimiento inicial.",
+    fields: ["full_name", "phone", "email", "requested_service", "status"]
+  },
+  {
+    key: "customers",
+    label: "Clientes",
+    group: "CRM",
+    endpoint: "customers",
+    icon: Home,
+    description: "Clientes activos, preferencias, etiquetas y relacion con propiedades.",
+    fields: ["full_name", "phone", "email", "status"]
+  },
+  {
+    key: "properties",
+    label: "Propiedades",
+    group: "Operacion",
+    endpoint: "properties",
+    icon: Building2,
+    description: "Casas, Airbnb, accesos, zona, complejidad y datos operativos.",
+    fields: ["name", "zone", "property_type", "bedrooms", "bathrooms"]
+  },
+  {
+    key: "services",
+    label: "Servicios",
+    group: "Catalogo",
+    endpoint: "services",
+    icon: Sparkles,
+    description: "Catalogo comercial, tareas, exclusiones y configuracion base.",
+    fields: ["name_es", "category", "is_active"]
+  },
+  {
+    key: "quotes",
+    label: "Cotizaciones",
+    group: "Ventas",
+    endpoint: "quotes",
+    icon: ClipboardCheck,
+    description: "Estados, totales, descuento, margen y conversion a orden de servicio.",
+    fields: ["code", "status", "subtotal", "tax", "total"]
+  },
+  {
+    key: "work-orders",
+    label: "Agenda",
+    group: "Operacion",
+    endpoint: "work-orders",
+    icon: CalendarDays,
+    description: "Ordenes de servicio, horarios, rutas, estado operativo y checklist.",
+    fields: ["status", "scheduled_start", "scheduled_end", "route_zone"]
+  },
+  {
+    key: "workers",
+    label: "Personal",
+    group: "Equipo",
+    endpoint: "workers",
+    icon: ShieldCheck,
+    description: "Personal y prestadores separados, disponibilidad, documentos y alertas.",
+    fields: ["full_name", "worker_type", "status", "subordination_risk"]
+  },
+  {
+    key: "payments",
+    label: "Finanzas",
+    group: "Finanzas",
+    endpoint: "payments",
+    icon: DollarSign,
+    description: "Pagos, metodos, conciliacion operativa e ingresos por servicio.",
+    fields: ["amount", "method", "status", "paid_at"]
+  },
+  {
+    key: "inventory-items",
+    label: "Inventario",
+    group: "Operacion",
+    endpoint: "inventory-items",
+    icon: ClipboardCheck,
+    description: "Productos, equipos, stock minimo, costos y responsables.",
+    fields: ["name", "category", "current_stock", "minimum_stock"]
+  }
+];
+
+function emptyResourceMap(): Record<ModuleKey, ResourceRow[]> {
+  return adminModules.reduce((accumulator, module) => {
+    accumulator[module.key] = [];
+    return accumulator;
+  }, {} as Record<ModuleKey, ResourceRow[]>);
+}
 
 export function App() {
   const [view, setView] = useState<View>("public");
@@ -39,7 +141,7 @@ export function App() {
     <div className="app-shell">
       <Header view={view} setView={setView} user={user} />
       {view === "public" && <PublicSite />}
-      {view === "admin" && <AdminPortal user={user} onLogin={setUser} />}
+      {view === "admin" && <AdminPortal user={user} onSessionChange={setUser} />}
       {view === "policies" && <Policies />}
     </div>
   );
@@ -404,11 +506,11 @@ function QuoteForm() {
   );
 }
 
-function AdminPortal({ user, onLogin }: { user: SessionUser | null; onLogin: (user: SessionUser) => void }) {
+function AdminPortal({ user, onSessionChange }: { user: SessionUser | null; onSessionChange: (user: SessionUser | null) => void }) {
   if (!user) {
-    return <LoginPanel onLogin={onLogin} />;
+    return <LoginPanel onLogin={onSessionChange} />;
   }
-  return <Dashboard user={user} />;
+  return <Dashboard user={user} onLogout={() => onSessionChange(null)} />;
 }
 
 function LoginPanel({ onLogin }: { onLogin: (user: SessionUser) => void }) {
@@ -445,37 +547,86 @@ function LoginPanel({ onLogin }: { onLogin: (user: SessionUser) => void }) {
   );
 }
 
-function Dashboard({ user }: { user: SessionUser }) {
-  const [leads, setLeads] = useState<Array<{ id: string; full_name: string; status: string }>>([]);
+function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
+  const [selectedModule, setSelectedModule] = useState<ModuleKey>("leads");
+  const [resources, setResources] = useState<Record<ModuleKey, ResourceRow[]>>(() => emptyResourceMap());
+  const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    listResource<{ id: string; full_name: string; status: string }>("leads").then((data) => setLeads(data.results)).catch(() => undefined);
+    let mounted = true;
+    async function loadResources() {
+      setLoading(true);
+      const nextResources = emptyResourceMap();
+      const nextErrors: Record<string, string> = {};
+      await Promise.all(adminModules.map(async (module) => {
+        try {
+          const data = await listResource<ResourceRow>(module.endpoint);
+          nextResources[module.key] = data.results;
+        } catch {
+          nextResources[module.key] = [];
+          nextErrors[module.key] = "No se pudo cargar este modulo. Revise permisos, sesion o API.";
+        }
+      }));
+      if (mounted) {
+        setResources(nextResources);
+        setErrors(nextErrors);
+        setLoading(false);
+      }
+    }
+    loadResources();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
+  async function endSession() {
+    try {
+      await logout();
+    } finally {
+      onLogout();
+    }
+  }
+
+  const selected = adminModules.find((module) => module.key === selectedModule) ?? adminModules[0];
+  const selectedRows = resources[selected.key] ?? [];
   const metrics = useMemo(() => [
-    ["Leads", leads.length.toString(), Users],
-    ["Agenda", "0", CalendarDays],
-    ["Cotizaciones", "0", ClipboardCheck],
-    ["Pagos", "0", DollarSign]
-  ], [leads.length]);
+    ["Leads", resources.leads.length.toString(), Users],
+    ["Clientes", resources.customers.length.toString(), Home],
+    ["Cotizaciones", resources.quotes.length.toString(), ClipboardCheck],
+    ["Agenda", resources["work-orders"].length.toString(), CalendarDays],
+    ["Pagos", resources.payments.length.toString(), DollarSign]
+  ], [resources]);
 
   return (
     <main className="admin-layout">
       <aside className="sidebar">
-        <LayoutDashboard size={22} />
-        <span>Dashboard</span>
-        <span>CRM</span>
-        <span>Agenda</span>
-        <span>Finanzas</span>
-        <span>Calidad</span>
+        <div className="sidebar-heading">
+          <LayoutDashboard size={22} />
+          <span>Portal operativo</span>
+        </div>
+        {adminModules.map((module) => {
+          const Icon = module.icon;
+          return (
+            <button className={selectedModule === module.key ? "active" : ""} key={module.key} onClick={() => setSelectedModule(module.key)}>
+              <Icon size={18} />
+              <span>{module.label}</span>
+              <small>{module.group}</small>
+            </button>
+          );
+        })}
       </aside>
       <section className="workspace">
         <div className="workspace-heading">
           <div>
-            <p className="eyebrow">Operacion</p>
-            <h1>Panel de control</h1>
+            <p className="eyebrow">Operacion diaria en React</p>
+            <h1>Panel administrativo</h1>
+            <p className="workspace-intro">Interfaz principal para validar datos operativos desde la API. Django Admin queda solo como herramienta tecnica secundaria.</p>
           </div>
-          <span className="user-pill"><ShieldCheck size={16} /> {user.role}</span>
+          <div className="admin-actions">
+            <span className="user-pill"><ShieldCheck size={16} /> {user.role}</span>
+            <button className="ghost admin-logout" onClick={endSession}><LogOut size={17} /> Salir</button>
+          </div>
         </div>
         <div className="metric-grid">
           {metrics.map(([label, value, Icon]) => (
@@ -487,14 +638,59 @@ function Dashboard({ user }: { user: SessionUser }) {
           ))}
         </div>
         <div className="table-panel">
-          <h2>Leads recientes</h2>
-          {leads.length === 0 ? <p>No hay leads cargados o falta iniciar API.</p> : leads.map((lead) => (
-            <div className="row" key={lead.id}><Home size={18} /><span>{lead.full_name}</span><strong>{lead.status}</strong></div>
-          ))}
+          <div className="module-heading">
+            <div>
+              <p className="eyebrow">{selected.group}</p>
+              <h2>{selected.label}</h2>
+              <p>{selected.description}</p>
+            </div>
+            <span className="user-pill">{loading ? "Cargando" : `${selectedRows.length} registros`}</span>
+          </div>
+          {errors[selected.key] && <p className="error">{errors[selected.key]}</p>}
+          {!errors[selected.key] && selectedRows.length === 0 ? (
+            <p>No hay registros cargados para este modulo o falta sembrar datos de prueba.</p>
+          ) : (
+            <div className="admin-table" role="table" aria-label={`Listado de ${selected.label}`}>
+              <div className="admin-table-head" role="row">
+                <span>Registro</span>
+                {selected.fields.slice(0, 4).map((field) => <span key={field}>{formatFieldName(field)}</span>)}
+              </div>
+              {selectedRows.slice(0, 8).map((row, index) => (
+                <div className="admin-table-row" role="row" key={row.id ?? `${selected.key}-${index}`}>
+                  <strong>{rowLabel(row, index)}</strong>
+                  {selected.fields.slice(0, 4).map((field) => <span key={field}>{formatValue(row[field])}</span>)}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </main>
   );
+}
+
+function rowLabel(row: ResourceRow, index: number) {
+  return String(row.full_name ?? row.name_es ?? row.name ?? row.title ?? row.id ?? `Registro ${index + 1}`);
+}
+
+function formatFieldName(field: string) {
+  return field.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatValue(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+  if (typeof value === "boolean") {
+    return value ? "Si" : "No";
+  }
+  if (typeof value === "number") {
+    return new Intl.NumberFormat("es-CR").format(value);
+  }
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return new Intl.DateTimeFormat("es-CR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  }
+  return String(value);
 }
 
 function Policies() {
