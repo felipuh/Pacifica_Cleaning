@@ -5,6 +5,8 @@ from django.conf import settings
 from django.http import FileResponse, HttpResponseForbidden
 from django.db.models import Count, Sum
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
@@ -30,6 +32,26 @@ def private_file(request, pk):
     return FileResponse(attachment.file.open("rb"), content_type=attachment.mime_type)
 
 
+@extend_schema(
+    responses=inline_serializer(
+        name="DashboardMetricsResponse",
+        fields={
+            "leads_new": serializers.IntegerField(),
+            "leads_pending": serializers.IntegerField(),
+            "quotes_pending": serializers.IntegerField(),
+            "quotes_sent": serializers.IntegerField(),
+            "quotes_accepted": serializers.IntegerField(),
+            "services_upcoming": serializers.IntegerField(),
+            "services_completed": serializers.IntegerField(),
+            "recurrent_customers": serializers.IntegerField(),
+            "estimated_revenue": serializers.DecimalField(max_digits=14, decimal_places=2),
+            "confirmed_revenue": serializers.DecimalField(max_digits=14, decimal_places=2),
+            "conversion_rate": serializers.FloatField(),
+            "recent_activity": serializers.ListField(child=serializers.DictField()),
+            "generated_at": serializers.DateTimeField(),
+        },
+    )
+)
 @api_view(["GET"])
 @permission_classes([role_permission(*READ_ONLY_ROLES)])
 def dashboard(request):

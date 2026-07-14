@@ -149,6 +149,10 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "Pacifica Cleaning API",
     "DESCRIPTION": "API operativa para Pacifica Cleaning.",
     "VERSION": "0.1.0",
+    "ENUM_NAME_OVERRIDES": {
+        "QuoteStatusEnum": "apps.services.models.Quote.Status",
+        "WorkOrderStatusEnum": "apps.operations.models.WorkOrder.Status",
+    },
 }
 
 SESSION_COOKIE_HTTPONLY = True
