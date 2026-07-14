@@ -141,7 +141,7 @@ jobs:
           test "$(cat /tmp/source-fingerprint.json)" = "$restored"
           docker compose -p pacifica-cleaning-staging exec -T -e DATABASE_URL="$restore_url" api python manage.py check
           docker compose -p pacifica-cleaning-staging exec -T -e DATABASE_URL="$restore_url" api python manage.py test tests.test_public_site tests.test_auth
-          docker compose -p pacifica-cleaning-staging exec -T -e DATABASE_URL="$restore_url" api python manage.py shell -c "from apps.crm.models import Lead; Lead.objects.create(full_name='Synthetic Restored Smoke Lead',email='restored-smoke@example.invalid',phone='0000-SMOKE',consent_data_processing=True); assert Lead.objects.filter(phone='0000-SMOKE').exists()"
+          docker compose -p pacifica-cleaning-staging exec -T -e DATABASE_URL="$restore_url" api python manage.py staging_restore_smoke
 
       - name: Security and dependency audits
         run: |
