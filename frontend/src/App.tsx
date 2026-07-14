@@ -129,12 +129,24 @@ function emptyResourceMap(): Record<ModuleKey, ResourceRow[]> {
 }
 
 export function App() {
-  const [view, setView] = useState<View>("public");
+  const [view, setViewState] = useState<View>(() => viewFromPath(window.location.pathname));
   const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
     getMe().then(setUser).catch(() => undefined);
+    const navigate = () => setViewState(viewFromPath(window.location.pathname));
+    window.addEventListener("popstate", navigate);
+    return () => window.removeEventListener("popstate", navigate);
   }, []);
+
+  const setView = (nextView: View) => {
+    const path = pathForView(nextView);
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
+    setViewState(nextView);
+    window.scrollTo({ top: 0 });
+  };
 
   return (
     <div className="app-shell">
@@ -144,6 +156,16 @@ export function App() {
       {view === "policies" && <Policies />}
     </div>
   );
+}
+
+function viewFromPath(path: string): View {
+  if (path.startsWith("/app")) return "admin";
+  if (path.startsWith("/legal")) return "policies";
+  return "public";
+}
+
+function pathForView(view: View): string {
+  return view === "admin" ? "/app" : view === "policies" ? "/legal" : "/";
 }
 
 function Header({ view, setView, user }: { view: View; setView: (view: View) => void; user: SessionUser | null }) {
@@ -156,7 +178,7 @@ function Header({ view, setView, user }: { view: View; setView: (view: View) => 
 
   return (
     <header className="topbar">
-      <button className="brand" onClick={() => setView("public")} aria-label="Inicio Pacifica Cleaning">
+      <button className="brand" onClick={() => setAppView("public")} aria-label="Inicio Pacifica Cleaning">
         <span className="brand-mark">PC</span>
         <span>
           <strong>PACÍFICA</strong>

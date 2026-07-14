@@ -1,23 +1,22 @@
 # Pacifica Cleaning
 
-Plataforma operativa bilingue para Pacifica Cleaning. La ruta actual prioriza un monolito Django simple: sitio publico, Django Admin, API interna minima y PostgreSQL.
+Plataforma operativa bilingüe para Pacífica Cleaning. React/Vite es la experiencia pública y operativa principal; Django/DRF concentra datos, reglas de negocio, autenticación, permisos y PostgreSQL.
 
-## Diagnostico breve
+## Arquitectura
 
-- El repositorio tenia backend Django modular, frontend React/Vite, Docker, Nginx, Redis y Celery.
-- El backend ya incluia modelos utiles para CRM, propiedades, servicios, cotizaciones, agenda, finanzas e inventario.
-- El frontend separado aumentaba el costo de despliegue del MVP y duplicaba validaciones que ya existen en Django/DRF.
-- Redis y Celery no son necesarios para captar leads, administrar catalogo/cotizaciones ni operar agenda inicial.
+- React sirve el sitio público y el portal en `/app`; consume la API bajo el mismo origen.
+- Django/DRF es la única autoridad para validaciones, cálculos, sesiones, CSRF, roles, permisos y archivos privados.
+- Django Admin en `/admin/` es una consola técnica secundaria para superadministradores.
+- Nginx sirve el build React, aplica fallback SPA y envía `/api/`, `/admin/` y `/private-files/` a Django.
+- PostgreSQL es la base principal. Redis/Celery permanecen opcionales para tareas asíncronas.
 
-## Arquitectura objetivo
-
-Django-only para el MVP: Django sirve paginas publicas con templates, Django Admin opera el backoffice, DRF queda para API interna, PostgreSQL es la base principal y Celery/Redis quedan como opcion de fase posterior.
+La decisión y la transición de las plantillas Django están documentadas en [`docs/adr/001-react-primary-frontend.md`](docs/adr/001-react-primary-frontend.md).
 
 ## Funcionalidad incluida
 
-- Sitio publico bilingue: inicio, servicios, zonas, contacto, FAQ y politicas.
-- Formulario publico de leads con CSRF, honeypot y validacion de backend.
-- Django Admin para leads, clientes, propiedades, servicios, cotizaciones y ordenes de servicio.
+- Sitio público React: inicio, servicios, zonas, contacto, FAQ y políticas.
+- Formulario público de leads con sesión/CSRF, honeypot y validación de backend.
+- Portal React autenticado y Django Admin técnico.
 - Modelos base existentes para CRM, catalogo, cotizaciones, agenda, finanzas e inventario.
 - Health check en `/api/v1/health/`.
 - Docker conservado como opcion, pero no como requisito de operacion.
@@ -62,11 +61,19 @@ make admin
 make run
 ```
 
-Abrir:
+En otra terminal, iniciar React:
 
-- Sitio publico: `http://localhost:8001/`
-- Contacto/leads: `http://localhost:8001/contacto/`
-- Admin: `http://localhost:8001/admin/`
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Abrir durante desarrollo:
+
+- Sitio público React: `http://localhost:5174/`
+- Portal React: `http://localhost:5174/app`
+- Django Admin técnico: `http://localhost:8001/admin/`
 - API docs: `http://localhost:8001/api/docs/`
 - Health: `http://localhost:8001/api/v1/health/`
 
@@ -133,7 +140,7 @@ python manage.py collectstatic --noinput
 gunicorn pacifica.wsgi:application --bind 127.0.0.1:8000 --workers 2 --timeout 60
 ```
 
-Nginx debe servir `/static/` desde `backend/staticfiles` y proxyear el resto a `127.0.0.1:8000`.
+El build `frontend/dist` debe servirse como raíz con fallback a `index.html`. Nginx envía API, Admin y archivos privados a Gunicorn; la configuración de referencia está en `infra/nginx/default.conf`.
 
 ## Docker opcional
 
@@ -148,7 +155,7 @@ El compose usa PostgreSQL y Nginx. Celery worker/beat solo arrancan con:
 docker compose --profile async up --build
 ```
 
-El frontend React queda bajo el perfil `legacy-frontend`; no es parte del MVP operativo.
+Compose usa el nombre aislado `pacifica-cleaning`, construye React como frontend principal y reserva nombres propios para redes y volúmenes.
 
 ## Fase posterior
 
@@ -157,4 +164,4 @@ El frontend React queda bajo el perfil `legacy-frontend`; no es parte del MVP op
 - Generar PDF de cotizacion con plantilla formal y branding definitivo.
 - Agregar una accion visual en Django Admin para convertir cotizacion aceptada con seleccion de horario.
 - Reintroducir Celery/Redis cuando haya recordatorios, correos masivos, backups asincronos o reportes pesados.
-- Decidir si el frontend React se elimina definitivamente o se reserva para portal cliente.
+- Retirar las plantillas públicas Django cuando los flujos E2E React alcancen cobertura equivalente.

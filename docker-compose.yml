@@ -1,3 +1,5 @@
+name: pacifica-cleaning
+
 services:
   db:
     image: docker.io/library/postgres:16-alpine
@@ -83,7 +85,6 @@ services:
     build:
       context: .
       dockerfile: infra/Dockerfile.frontend
-    profiles: ["legacy-frontend"]
     volumes:
       - frontend_dist:/usr/share/nginx/html
 
@@ -98,6 +99,7 @@ services:
       - media_data:/var/www/media:ro
     depends_on:
       - api
+      - frontend
 
 volumes:
   postgres_data:
