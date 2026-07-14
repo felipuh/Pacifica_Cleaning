@@ -14,6 +14,7 @@ class Command(BaseCommand):
             raise CommandError("A restored super administrator is required.")
 
         client = APIClient()
+        client.defaults["HTTP_HOST"] = "api"
         client.force_authenticate(user=user)
         routes = [
             "/api/v1/dashboard/",
