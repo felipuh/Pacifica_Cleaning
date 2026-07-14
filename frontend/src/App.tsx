@@ -22,7 +22,21 @@ import {
   Users,
   X
 } from "lucide-react";
-import { createLead, getMe, listResource, login, logout, requestPasswordReset, SessionUser } from "./api";
+import {
+  createLead,
+  createResource,
+  DashboardMetrics,
+  getDashboard,
+  getMe,
+  listResource,
+  login,
+  logout,
+  queryResource,
+  requestPasswordReset,
+  resourceAction,
+  SessionUser,
+  updateResource
+} from "./api";
 import { benefits, coverageZones, faqs, processSteps, services, whatsappUrl } from "./content";
 
 type View = "public" | "admin" | "policies";
@@ -562,33 +576,58 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
   const [resources, setResources] = useState<Record<ModuleKey, ResourceRow[]>>(() => emptyResourceMap());
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [dashboard, setDashboard] = useState<DashboardMetrics | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [editing, setEditing] = useState<ResourceRow | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  async function loadResources() {
+    setLoading(true);
+    const nextResources = emptyResourceMap();
+    const nextErrors: Record<string, string> = {};
+    await Promise.all(adminModules.map(async (module) => {
+      try {
+        const data = await listResource<ResourceRow>(module.endpoint);
+        nextResources[module.key] = data.results;
+      } catch {
+        nextResources[module.key] = [];
+        nextErrors[module.key] = "No se pudo cargar este módulo. Revise permisos, sesión o API.";
+      }
+    }));
+    setResources(nextResources);
+    setErrors(nextErrors);
+    setLoading(false);
+    getDashboard().then(setDashboard).catch(() => setDashboard(null));
+  }
 
   useEffect(() => {
     let mounted = true;
-    async function loadResources() {
-      setLoading(true);
-      const nextResources = emptyResourceMap();
-      const nextErrors: Record<string, string> = {};
-      await Promise.all(adminModules.map(async (module) => {
-        try {
-          const data = await listResource<ResourceRow>(module.endpoint);
-          nextResources[module.key] = data.results;
-        } catch {
-          nextResources[module.key] = [];
-          nextErrors[module.key] = "No se pudo cargar este modulo. Revise permisos, sesion o API.";
-        }
-      }));
-      if (mounted) {
-        setResources(nextResources);
-        setErrors(nextErrors);
-        setLoading(false);
-      }
-    }
-    loadResources();
+    loadResources().catch(() => {
+      if (mounted) setLoading(false);
+    });
     return () => {
       mounted = false;
     };
   }, []);
+
+  async function filterSelected(event: React.FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (statusFilter) params.set("status", statusFilter);
+    try {
+      const data = await queryResource<ResourceRow>(selected.endpoint, params);
+      setResources((current) => ({ ...current, [selected.key]: data.results }));
+      setErrors((current) => ({ ...current, [selected.key]: "" }));
+    } catch {
+      setErrors((current) => ({ ...current, [selected.key]: "No se pudo aplicar el filtro." }));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function endSession() {
     try {
@@ -600,13 +639,17 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
 
   const selected = adminModules.find((module) => module.key === selectedModule) ?? adminModules[0];
   const selectedRows = resources[selected.key] ?? [];
-  const metrics = useMemo(() => [
-    ["Leads", resources.leads.length.toString(), Users],
-    ["Clientes", resources.customers.length.toString(), Home],
-    ["Cotizaciones", resources.quotes.length.toString(), ClipboardCheck],
-    ["Agenda", resources["work-orders"].length.toString(), CalendarDays],
-    ["Pagos", resources.payments.length.toString(), DollarSign]
-  ], [resources]);
+  const metrics = useMemo<Array<[string, string | number, typeof Users]>>(() => [
+    ["Leads nuevos", dashboard?.leads_new ?? 0, Users],
+    ["Leads pendientes", dashboard?.leads_pending ?? 0, Users],
+    ["Cotizaciones enviadas", dashboard?.quotes_sent ?? 0, ClipboardCheck],
+    ["Servicios próximos", dashboard?.services_upcoming ?? 0, CalendarDays],
+    ["Ingresos estimados", dashboard ? formatMoney(dashboard.estimated_revenue) : "—", DollarSign],
+    ["Conversión", dashboard ? `${dashboard.conversion_rate}%` : "—", BadgeCheck]
+  ], [dashboard]);
+
+  const editableModules: ModuleKey[] = ["leads", "customers", "properties", "quotes"];
+  const canEdit = ["superadmin", "managing_partner", "operations", "sales"].includes(user.role);
 
   return (
     <main className="admin-layout">
@@ -654,8 +697,19 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
               <h2>{selected.label}</h2>
               <p>{selected.description}</p>
             </div>
-            <span className="user-pill">{loading ? "Cargando" : `${selectedRows.length} registros`}</span>
+            <div className="admin-actions">
+              <span className="user-pill">{loading ? "Cargando" : `${selectedRows.length} registros`}</span>
+              {canEdit && editableModules.includes(selected.key) && (
+                <button className="primary" onClick={() => { setEditing(null); setShowEditor(true); }}>Nuevo</button>
+              )}
+            </div>
           </div>
+          <form className="admin-filters" onSubmit={filterSelected}>
+            <label>Buscar<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nombre, correo, teléfono o zona" /></label>
+            <label>Estado<input value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} placeholder="new, sent, completed…" /></label>
+            <button className="ghost">Aplicar filtros</button>
+          </form>
+          {notice && <p className="success" role="status">{notice}</p>}
           {errors[selected.key] && <p className="error">{errors[selected.key]}</p>}
           {!errors[selected.key] && selectedRows.length === 0 ? (
             <p>No hay registros cargados para este modulo o falta sembrar datos de prueba.</p>
@@ -669,14 +723,217 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
                 <div className="admin-table-row" role="row" key={row.id ?? `${selected.key}-${index}`}>
                   <strong>{rowLabel(row, index)}</strong>
                   {selected.fields.slice(0, 4).map((field) => <span key={field}>{formatValue(row[field])}</span>)}
+                  {canEdit && editableModules.includes(selected.key) && <button className="ghost" onClick={() => { setEditing(row); setShowEditor(true); }}>Editar</button>}
                 </div>
               ))}
             </div>
+          )}
+          {showEditor && (
+            <OperationalEditor
+              module={selected.key}
+              row={editing}
+              resources={resources}
+              onClose={() => setShowEditor(false)}
+              onSaved={async (message) => { setShowEditor(false); setNotice(message); await loadResources(); }}
+            />
+          )}
+          {selected.key === "work-orders" && <Agenda rows={selectedRows} onChanged={loadResources} canEdit={canEdit} />}
+          {dashboard && selected.key === "leads" && (
+            <section className="recent-activity">
+              <h3>Actividad reciente</h3>
+              {dashboard.recent_activity.map((item) => <p key={`${item.type}-${item.id}`}><strong>{item.label}</strong> · {item.status} · {formatValue(item.at)}</p>)}
+            </section>
           )}
         </div>
       </section>
     </main>
   );
+}
+
+function OperationalEditor({
+  module,
+  row,
+  resources,
+  onClose,
+  onSaved
+}: {
+  module: ModuleKey;
+  row: ResourceRow | null;
+  resources: Record<ModuleKey, ResourceRow[]>;
+  onClose: () => void;
+  onSaved: (message: string) => Promise<void>;
+}) {
+  const [form, setForm] = useState<Record<string, string | boolean>>(() => editorDefaults(module, row));
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const field = (name: string, value: string | boolean) => setForm((current) => ({ ...current, [name]: value }));
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const payload = editorPayload(module, form);
+      if (row?.id) await updateResource(adminModules.find((item) => item.key === module)!.endpoint, row.id, payload);
+      else await createResource(adminModules.find((item) => item.key === module)!.endpoint, payload);
+      await onSaved(row ? "Registro actualizado." : "Registro creado.");
+    } catch (caught) {
+      setError(apiErrorMessage(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function action(name: string, payload: unknown = {}) {
+    if (!row?.id) return;
+    setSaving(true);
+    setError("");
+    try {
+      await resourceAction(adminModules.find((item) => item.key === module)!.endpoint, row.id, name, payload);
+      await onSaved(`Acción ${name} completada.`);
+    } catch (caught) {
+      setError(apiErrorMessage(caught));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="editor-panel" role="dialog" aria-modal="true" aria-labelledby="editor-title">
+        <div className="module-heading">
+          <h3 id="editor-title">{row ? "Editar" : "Crear"} {moduleLabel(module)}</h3>
+          <button className="ghost" type="button" onClick={onClose} aria-label="Cerrar editor"><X size={18} /></button>
+        </div>
+        <form className="editor-form" onSubmit={submit}>
+          {module === "leads" && <>
+            <label>Nombre<input required value={String(form.full_name)} onChange={(e) => field("full_name", e.target.value)} /></label>
+            <label>Correo<input type="email" value={String(form.email)} onChange={(e) => field("email", e.target.value)} /></label>
+            <label>Teléfono<input required value={String(form.phone)} onChange={(e) => field("phone", e.target.value)} /></label>
+            <label>Servicio<input value={String(form.requested_service)} onChange={(e) => field("requested_service", e.target.value)} /></label>
+            <label>Estado<select value={String(form.status)} onChange={(e) => field("status", e.target.value)}><option value="new">Nuevo</option><option value="contacted">Contactado</option><option value="qualified">Calificado</option><option value="lost">Perdido</option><option value="won">Convertido</option></select></label>
+            <label className="wide">Notas<textarea value={String(form.notes)} onChange={(e) => field("notes", e.target.value)} /></label>
+            <label className="check"><input type="checkbox" checked={Boolean(form.consent_data_processing)} onChange={(e) => field("consent_data_processing", e.target.checked)} /> Consentimiento de datos</label>
+          </>}
+          {module === "customers" && <>
+            <label>Nombre<input required value={String(form.display_name)} onChange={(e) => field("display_name", e.target.value)} /></label>
+            <label>Tipo<select value={String(form.customer_type)} onChange={(e) => field("customer_type", e.target.value)}><option value="individual">Persona</option><option value="business">Empresa</option><option value="property_manager">Administrador de propiedades</option></select></label>
+            <label>Correo<input type="email" value={String(form.email)} onChange={(e) => field("email", e.target.value)} /></label>
+            <label>Teléfono<input value={String(form.phone)} onChange={(e) => field("phone", e.target.value)} /></label>
+            <label>Estado<select value={String(form.status)} onChange={(e) => field("status", e.target.value)}><option value="active">Activo</option><option value="inactive">Inactivo</option><option value="delinquent">Moroso</option></select></label>
+            <label>Etiquetas<input value={String(form.tags)} onChange={(e) => field("tags", e.target.value)} placeholder="airbnb, recurrente" /></label>
+            <label className="wide">Notas<textarea value={String(form.notes)} onChange={(e) => field("notes", e.target.value)} /></label>
+          </>}
+          {module === "properties" && <>
+            <label>Cliente<select required value={String(form.customer)} onChange={(e) => field("customer", e.target.value)}><option value="">Seleccione</option>{resources.customers.map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
+            <label>Nombre<input required value={String(form.name)} onChange={(e) => field("name", e.target.value)} /></label>
+            <label className="wide">Dirección<textarea required value={String(form.address)} onChange={(e) => field("address", e.target.value)} /></label>
+            <label>Zona<input required value={String(form.zone)} onChange={(e) => field("zone", e.target.value)} /></label>
+            <label>Tipo<select value={String(form.property_type)} onChange={(e) => field("property_type", e.target.value)}><option value="home">Residencial</option><option value="office">Oficina</option><option value="vacation">Vacacional / Airbnb</option></select></label>
+            <label>Dormitorios<input type="number" min="0" value={String(form.bedrooms)} onChange={(e) => field("bedrooms", e.target.value)} /></label>
+            <label>Baños<input type="number" min="0" step="0.5" value={String(form.bathrooms)} onChange={(e) => field("bathrooms", e.target.value)} /></label>
+            <label>Tamaño m²<input type="number" min="0" value={String(form.area_m2)} onChange={(e) => field("area_m2", e.target.value)} /></label>
+            <label>Frecuencia<input value={String(form.frequency)} onChange={(e) => field("frequency", e.target.value)} /></label>
+            <label className="wide">Indicaciones operativas<textarea value={String(form.operational_notes)} onChange={(e) => field("operational_notes", e.target.value)} /></label>
+            <label className="wide">Acceso protegido<textarea value={String(form.access_instructions)} onChange={(e) => field("access_instructions", e.target.value)} /></label>
+          </>}
+          {module === "quotes" && <>
+            <label>Cliente<select required value={String(form.customer)} onChange={(e) => field("customer", e.target.value)}><option value="">Seleccione</option>{resources.customers.map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
+            <label>Propiedad<select required value={String(form.property)} onChange={(e) => field("property", e.target.value)}><option value="">Seleccione</option>{resources.properties.filter((item) => !form.customer || item.customer === form.customer).map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
+            <label>Servicio<select required value={String(form.service)} onChange={(e) => field("service", e.target.value)}><option value="">Seleccione</option>{resources.services.map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
+            <label>Descripción<input required value={String(form.description)} onChange={(e) => field("description", e.target.value)} /></label>
+            <label>Cantidad<input type="number" min="0.01" step="0.01" value={String(form.quantity)} onChange={(e) => field("quantity", e.target.value)} /></label>
+            <label>Precio unitario<input type="number" min="0" step="0.01" value={String(form.unit_price)} onChange={(e) => field("unit_price", e.target.value)} /></label>
+            <label>Descuento<input type="number" min="0" step="0.01" value={String(form.discount)} onChange={(e) => field("discount", e.target.value)} /></label>
+            <label>Impuesto (0–1)<input type="number" min="0" max="1" step="0.0001" value={String(form.tax_rate)} onChange={(e) => field("tax_rate", e.target.value)} /></label>
+            <label>Vigente hasta<input type="date" required value={String(form.valid_until)} onChange={(e) => field("valid_until", e.target.value)} /></label>
+            <label className="wide">Condiciones<textarea value={String(form.terms)} onChange={(e) => field("terms", e.target.value)} /></label>
+            <label>Inicio del servicio<input type="datetime-local" value={String(form.scheduled_start)} onChange={(e) => field("scheduled_start", e.target.value)} /></label>
+            <label>Fin del servicio<input type="datetime-local" value={String(form.scheduled_end)} onChange={(e) => field("scheduled_end", e.target.value)} /></label>
+            {row && <p className="wide">Los totales mostrados se recalculan exclusivamente en Django.</p>}
+          </>}
+          {error && <p className="error wide" role="alert">{error}</p>}
+          <div className="editor-actions wide">
+            <button className="primary" disabled={saving}>{saving ? "Guardando…" : "Guardar"}</button>
+            <button className="ghost" type="button" onClick={onClose}>Cancelar</button>
+            {row && module === "leads" && <><button className="ghost" type="button" onClick={() => action("activities", { activity_type: "note", detail: form.notes })}>Registrar nota</button><button className="ghost" type="button" onClick={() => action("convert")}>Convertir en cliente</button><button className="ghost danger" type="button" onClick={() => action("archive")}>Archivar</button></>}
+            {row && module === "customers" && <button className="ghost danger" type="button" onClick={() => action("archive")}>Archivar</button>}
+            {row && module === "quotes" && <><button className="ghost" type="button" onClick={() => action("send")}>Marcar enviada</button><button className="ghost" type="button" onClick={() => action("accept")}>Aceptar</button><button className="ghost" type="button" onClick={() => action("convert-to-work-order", { scheduled_start: form.scheduled_start, scheduled_end: form.scheduled_end })}>Crear servicio</button></>}
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function Agenda({ rows, onChanged, canEdit }: { rows: ResourceRow[]; onChanged: () => Promise<void>; canEdit: boolean }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
+  const [error, setError] = useState("");
+  const visible = rows.filter((row) => String(row.scheduled_start ?? "").slice(0, 10) === date);
+
+  async function transition(row: ResourceRow, status: string) {
+    if (!row.id) return;
+    setError("");
+    try {
+      await resourceAction("work-orders", row.id, "transition", { status });
+      await onChanged();
+    } catch (caught) {
+      setError(apiErrorMessage(caught));
+    }
+  }
+
+  return (
+    <section className="agenda-panel">
+      <div className="module-heading"><div><p className="eyebrow">Vista diaria</p><h3>Agenda operativa</h3></div><label>Fecha<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></div>
+      {error && <p className="error">{error}</p>}
+      {visible.length === 0 && <p>No hay servicios programados para esta fecha.</p>}
+      <div className="agenda-grid">
+        {visible.map((row) => <article className="agenda-card" key={String(row.id)}>
+          <strong>{formatValue(row.scheduled_start)}</strong>
+          <span>{rowLabel(row, 0)}</span><span>{formatValue(row.status)}</span>
+          {canEdit && <div className="admin-actions">
+            {row.status === "planned" && <button className="ghost" onClick={() => transition(row, "confirmed")}>Confirmar</button>}
+            {row.status === "confirmed" && <button className="ghost" onClick={() => transition(row, "in_progress")}>Iniciar</button>}
+            {row.status === "in_progress" && <button className="ghost" onClick={() => transition(row, "completed")}>Finalizar</button>}
+          </div>}
+        </article>)}
+      </div>
+    </section>
+  );
+}
+
+function editorDefaults(module: ModuleKey, row: ResourceRow | null): Record<string, string | boolean> {
+  const value = (name: string, fallback = "") => String(row?.[name] ?? fallback);
+  if (module === "leads") return { full_name: value("full_name"), email: value("email"), phone: value("phone"), requested_service: value("requested_service"), status: value("status", "new"), notes: value("notes"), consent_data_processing: Boolean(row?.consent_data_processing ?? true) };
+  if (module === "customers") return { display_name: value("display_name"), customer_type: value("customer_type", "individual"), email: value("email"), phone: value("phone"), status: value("status", "active"), tags: Array.isArray(row?.tags) ? row.tags.join(", ") : "", notes: value("notes") };
+  if (module === "properties") return { customer: value("customer"), name: value("name"), address: value("address"), zone: value("zone"), property_type: value("property_type", "home"), bedrooms: value("bedrooms", "0"), bathrooms: value("bathrooms", "0"), area_m2: value("area_m2"), frequency: value("frequency"), operational_notes: value("operational_notes"), access_instructions: value("access_instructions") };
+  const line = Array.isArray(row?.lines) ? row.lines[0] as Record<string, unknown> | undefined : undefined;
+  return { customer: value("customer"), property: value("property"), service: String(line?.service ?? ""), description: String(line?.description ?? ""), quantity: String(line?.quantity ?? "1"), unit_price: String(line?.unit_price ?? "0"), discount: value("discount", "0"), tax_rate: String(line?.tax_rate ?? "0.13"), valid_until: value("valid_until", new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)), terms: value("terms"), scheduled_start: "", scheduled_end: "" };
+}
+
+function editorPayload(module: ModuleKey, form: Record<string, string | boolean>): unknown {
+  if (module === "customers") return { ...form, tags: String(form.tags).split(",").map((tag) => tag.trim()).filter(Boolean) };
+  if (module === "properties") return { ...form, bedrooms: Number(form.bedrooms), bathrooms: String(form.bathrooms), area_m2: form.area_m2 ? Number(form.area_m2) : null };
+  if (module === "quotes") return { customer: form.customer, property: form.property, currency: "CRC", valid_until: form.valid_until, discount: form.discount, terms: form.terms, lines: [{ service: form.service, description: form.description, quantity: form.quantity, estimated_hours: "0", unit_price: form.unit_price, tax_rate: form.tax_rate, expected_cost: "0" }] };
+  return form;
+}
+
+function moduleLabel(module: ModuleKey) {
+  return adminModules.find((item) => item.key === module)?.label ?? module;
+}
+
+function apiErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return "Error inesperado.";
+  try {
+    const parsed = JSON.parse(error.message);
+    return parsed.detail ?? Object.values(parsed).flat().join(" ");
+  } catch {
+    return error.message;
+  }
+}
+
+function formatMoney(value: string) {
+  return new Intl.NumberFormat("es-CR", { style: "currency", currency: "CRC", maximumFractionDigits: 0 }).format(Number(value));
 }
 
 function rowLabel(row: ResourceRow, index: number) {

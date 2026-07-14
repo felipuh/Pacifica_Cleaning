@@ -86,3 +86,53 @@ export async function requestPasswordReset(email: string): Promise<{ detail: str
 export async function listResource<T>(resource: string): Promise<{ results: T[] }> {
   return request(`/api/v1/${resource}/`);
 }
+
+export async function queryResource<T>(resource: string, params: URLSearchParams): Promise<{ count: number; results: T[] }> {
+  return request(`/api/v1/${resource}/?${params.toString()}`);
+}
+
+export async function createResource<T>(resource: string, payload: unknown): Promise<T> {
+  const csrf = await ensureCsrf();
+  return request(`/api/v1/${resource}/`, {
+    method: "POST",
+    headers: { "X-CSRFToken": csrf },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateResource<T>(resource: string, id: string, payload: unknown): Promise<T> {
+  const csrf = await ensureCsrf();
+  return request(`/api/v1/${resource}/${id}/`, {
+    method: "PATCH",
+    headers: { "X-CSRFToken": csrf },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function resourceAction<T>(resource: string, id: string, action: string, payload: unknown = {}): Promise<T> {
+  const csrf = await ensureCsrf();
+  return request(`/api/v1/${resource}/${id}/${action}/`, {
+    method: "POST",
+    headers: { "X-CSRFToken": csrf },
+    body: JSON.stringify(payload)
+  });
+}
+
+export type DashboardMetrics = {
+  leads_new: number;
+  leads_pending: number;
+  quotes_pending: number;
+  quotes_sent: number;
+  quotes_accepted: number;
+  services_upcoming: number;
+  services_completed: number;
+  recurrent_customers: number;
+  estimated_revenue: string;
+  confirmed_revenue: string;
+  conversion_rate: number;
+  recent_activity: Array<{ type: string; id: string; label: string; status: string; at: string }>;
+};
+
+export async function getDashboard(): Promise<DashboardMetrics> {
+  return request("/api/v1/dashboard/");
+}
