@@ -33,7 +33,7 @@ run:
 	$(DJANGO) runserver $(HOST):$(PORT)
 
 test:
-	$(DJANGO) test
+	cd backend && . .venv/bin/activate && DATABASE_URL=sqlite:///:memory: python manage.py test tests
 
 check:
 	$(DJANGO) check

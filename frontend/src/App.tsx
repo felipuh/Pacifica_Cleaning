@@ -19,7 +19,6 @@ import {
   PhoneCall,
   ShieldCheck,
   Sparkles,
-  Star,
   Users,
   X
 } from "lucide-react";
@@ -193,7 +192,6 @@ function PublicSite() {
       <AirbnbSection />
       <ProcessSection />
       <TrustSection />
-      <TestimonialsSection />
       <QuoteForm />
       <FinalCTA />
       <FAQSection />
@@ -350,30 +348,6 @@ function TrustSection() {
         <Leaf size={24} />
         <h3>Cuidamos tu hogar como si fuera nuestro.</h3>
         <p>Procesos verificables, consentimiento para evidencias y comunicación clara antes, durante y después del servicio.</p>
-      </div>
-    </section>
-  );
-}
-
-function TestimonialsSection() {
-  return (
-    <section className="section testimonials-section">
-      <div className="section-heading reveal">
-        <div>
-          <p className="eyebrow">Testimonios</p>
-          <h2>Opiniones de clientes</h2>
-        </div>
-      </div>
-      <div className="testimonial-grid">
-        {["Testimonio pendiente de cliente real.", "Aquí se mostrará la opinión de clientes satisfechos.", "Espacio reservado para una reseña verificada."].map((text) => (
-          <article className="testimonial-card reveal" key={text}>
-            <div className="stars" aria-label="Espacio para calificación">
-              <Star size={17} /><Star size={17} /><Star size={17} /><Star size={17} /><Star size={17} />
-            </div>
-            <p>{text}</p>
-            <span>Reemplazar por testimonio real</span>
-          </article>
-        ))}
       </div>
     </section>
   );

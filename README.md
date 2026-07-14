@@ -27,7 +27,7 @@ Django-only para el MVP: Django sirve paginas publicas con templates, Django Adm
 Requisitos:
 
 - Python 3.12
-- PostgreSQL 16 o compatible
+- PostgreSQL 14 o superior (16 recomendado)
 
 El repositorio fija la linea base en `.python-version`, `runtime.txt` y `pyproject.toml`. En Rocky/RHEL, instala Python 3.12 con:
 

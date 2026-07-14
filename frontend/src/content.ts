@@ -1,8 +1,10 @@
-export const whatsappNumber = "506XXXXXXXX";
+export const whatsappNumber = (import.meta.env.VITE_WHATSAPP_NUMBER ?? "").replace(/\D/g, "");
 
 export const whatsappText = "Hola Pacífica Cleaning, quiero solicitar una cotización";
 
-export const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappText)}`;
+export const whatsappUrl = whatsappNumber
+  ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappText)}`
+  : "#cotizar";
 
 export const services = [
   {
