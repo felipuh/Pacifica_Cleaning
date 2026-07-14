@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
+      TZ: America/Costa_Rica
       COMPOSE_PROJECT_NAME: pacifica-cleaning-staging
       COMPOSE_ENV_FILE: .env.staging.local
       POSTGRES_DB: pacifica_cleaning_staging_source
