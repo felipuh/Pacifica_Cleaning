@@ -24,12 +24,19 @@ class Lead(TimeStampedUUIDModel):
     consent_marketing = models.BooleanField(default=False)
     assigned_to = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL)
     next_follow_up_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    is_archived = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return self.full_name
 
 
 class Customer(TimeStampedUUIDModel):
+    class CustomerType(models.TextChoices):
+        INDIVIDUAL = "individual", "Persona"
+        BUSINESS = "business", "Empresa"
+        PROPERTY_MANAGER = "property_manager", "Administrador de propiedades"
+
     class Status(models.TextChoices):
         ACTIVE = "active", "Activo"
         INACTIVE = "inactive", "Inactivo"
@@ -46,6 +53,12 @@ class Customer(TimeStampedUUIDModel):
     pets = models.TextField(blank=True)
     special_instructions = models.TextField(blank=True)
     referral_source = models.CharField(max_length=120, blank=True)
+    customer_type = models.CharField(max_length=24, choices=CustomerType.choices, default=CustomerType.INDIVIDUAL)
+    notes = models.TextField(blank=True)
+    consent_data_processing = models.BooleanField(default=False)
+    consent_marketing = models.BooleanField(default=False)
+    source_lead = models.OneToOneField(Lead, null=True, blank=True, related_name="converted_customer", on_delete=models.SET_NULL)
+    is_archived = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return self.display_name
@@ -87,6 +100,9 @@ class Property(TimeStampedUUIDModel):
     alarm_notes = models.TextField(blank=True)
     restrictions = models.TextField(blank=True)
     standard_minutes = models.PositiveIntegerField(default=120)
+    frequency = models.CharField(max_length=40, blank=True)
+    operational_notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
 
     def masked_access(self) -> str:
         return "Registrado; visible solo para roles autorizados." if self.access_instructions else ""
@@ -106,3 +122,22 @@ class Communication(TimeStampedUUIDModel):
     subject = models.CharField(max_length=160, blank=True)
     body = models.TextField()
     created_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL)
+
+
+class LeadActivity(TimeStampedUUIDModel):
+    lead = models.ForeignKey(Lead, related_name="activities", on_delete=models.CASCADE)
+    activity_type = models.CharField(
+        max_length=24,
+        choices=[
+            ("note", "Nota"),
+            ("contact", "Contacto"),
+            ("status", "Cambio de estado"),
+            ("assignment", "Asignación"),
+            ("conversion", "Conversión"),
+        ],
+    )
+    detail = models.TextField()
+    created_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        ordering = ["-created_at"]

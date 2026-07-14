@@ -2,7 +2,16 @@ from rest_framework import serializers
 
 from apps.core.permissions import SENSITIVE_ACCESS_ROLES
 
-from .models import Communication, Contact, Customer, Lead, Property
+from .models import Communication, Contact, Customer, Lead, LeadActivity, Property
+
+
+class LeadActivitySerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(source="created_by.get_full_name", read_only=True)
+
+    class Meta:
+        model = LeadActivity
+        fields = "__all__"
+        read_only_fields = ("lead", "created_by")
 
 
 class PublicLeadSerializer(serializers.ModelSerializer):
@@ -37,15 +46,21 @@ class PublicLeadSerializer(serializers.ModelSerializer):
 
 
 class LeadSerializer(serializers.ModelSerializer):
+    activities = LeadActivitySerializer(many=True, read_only=True)
+    converted_customer_id = serializers.UUIDField(source="converted_customer.id", read_only=True)
+
     class Meta:
         model = Lead
         fields = "__all__"
         read_only_fields = ("id", "created_at", "updated_at")
 
     def validate(self, attrs):
-        if not attrs.get("email") and not attrs.get("phone"):
+        email = attrs.get("email", getattr(self.instance, "email", ""))
+        phone = attrs.get("phone", getattr(self.instance, "phone", ""))
+        consent = attrs.get("consent_data_processing", getattr(self.instance, "consent_data_processing", False))
+        if not email and not phone:
             raise serializers.ValidationError("Debe indicar correo o telefono.")
-        if not attrs.get("consent_data_processing"):
+        if not consent:
             raise serializers.ValidationError("El consentimiento de tratamiento de datos es obligatorio.")
         return attrs
 
@@ -54,6 +69,16 @@ class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = "__all__"
+
+    def validate(self, attrs):
+        email = attrs.get("email", getattr(self.instance, "email", ""))
+        phone = attrs.get("phone", getattr(self.instance, "phone", ""))
+        qs = Customer.objects.exclude(pk=getattr(self.instance, "pk", None))
+        if email and qs.filter(email__iexact=email, is_archived=False).exists():
+            raise serializers.ValidationError({"email": "Ya existe un cliente activo con este correo."})
+        if phone and qs.filter(phone=phone, is_archived=False).exists():
+            raise serializers.ValidationError({"phone": "Ya existe un cliente activo con este teléfono."})
+        return attrs
 
 
 class ContactSerializer(serializers.ModelSerializer):
