@@ -75,6 +75,7 @@ class PasswordRecoveryTests(TestCase):
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("Changed-Password-67890"))
 
+    @override_settings(CSRF_TRUSTED_ORIGINS=["http://127.0.0.1:5174"])
     def test_authenticated_mutation_accepts_exact_vite_development_origin(self):
         lead = Lead.objects.create(full_name="Lead CSRF", phone="8000-5000", consent_data_processing=True)
         client = Client(enforce_csrf_checks=True)
