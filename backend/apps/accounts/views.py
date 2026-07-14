@@ -139,6 +139,7 @@ def me(request):
     return Response(UserSerializer(request.user).data)
 
 
+@extend_schema(request=PasswordResetRequestSerializer, responses={200: OpenApiResponse(description="Respuesta genérica de recuperación.")})
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([LoginThrottle])
@@ -163,6 +164,7 @@ def password_reset_request(request):
     return Response({"detail": "Si la cuenta existe, recibirá instrucciones para restablecer la contraseña."})
 
 
+@extend_schema(request=PasswordResetConfirmSerializer, responses={200: OpenApiResponse(description="Contraseña actualizada.")})
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([LoginThrottle])
@@ -189,6 +191,7 @@ def password_reset_confirm(request):
     return Response({"detail": "Contraseña actualizada."})
 
 
+@extend_schema(request=PasswordChangeSerializer, responses={200: OpenApiResponse(description="Contraseña actualizada.")})
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def password_change(request):
