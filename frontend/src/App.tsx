@@ -775,7 +775,7 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
               onSaved={async (message) => { setShowEditor(false); setNotice(message); await loadResources(); }}
             />
           )}
-          {selected.key === "work-orders" && <Agenda workers={resources.workers} canEdit={canEdit} />}
+          {selected.key === "work-orders" && <Agenda workers={resources.workers} canEdit={canEdit} onChanged={loadResources} />}
           {dashboard && selected.key === "leads" && (
             <section className="recent-activity">
               <h3>Actividad reciente</h3>
@@ -907,7 +907,7 @@ function OperationalEditor({
   );
 }
 
-function Agenda({ workers, canEdit }: { workers: ResourceRow[]; canEdit: boolean }) {
+function Agenda({ workers, canEdit, onChanged }: { workers: ResourceRow[]; canEdit: boolean; onChanged: () => Promise<void> }) {
   const today = new Date().toISOString().slice(0, 10);
   const [anchor, setAnchor] = useState(today);
   const [viewMode, setViewMode] = useState<"day" | "week">("day");
@@ -940,13 +940,13 @@ function Agenda({ workers, canEdit }: { workers: ResourceRow[]; canEdit: boolean
 
   async function transition(row: ResourceRow, status: string) {
     if (!row.id) return;
-    try { await resourceAction("work-orders", row.id, "transition", { status }); await loadAgenda(); }
+    try { await resourceAction("work-orders", row.id, "transition", { status }); await loadAgenda(); await onChanged(); }
     catch (caught) { setError(apiErrorMessage(caught)); }
   }
 
   async function saveAssignment() {
     if (!assigning?.id) return;
-    try { await resourceAction("work-orders", assigning.id, "assign", { worker_ids: selectedWorkers }); setAssigning(null); await loadAgenda(); }
+    try { await resourceAction("work-orders", assigning.id, "assign", { worker_ids: selectedWorkers }); setAssigning(null); await loadAgenda(); await onChanged(); }
     catch (caught) { setError(apiErrorMessage(caught)); }
   }
 
@@ -982,7 +982,7 @@ function Agenda({ workers, canEdit }: { workers: ResourceRow[]; canEdit: boolean
           })}
         </section>)}
       </div>
-      {rescheduling && <RescheduleDialog row={rescheduling} onClose={() => setRescheduling(null)} onSaved={async () => { setRescheduling(null); await loadAgenda(); }} />}
+      {rescheduling && <RescheduleDialog row={rescheduling} onClose={() => setRescheduling(null)} onSaved={async () => { setRescheduling(null); await loadAgenda(); await onChanged(); }} />}
       {assigning && <div className="modal-backdrop"><section className="editor-panel assignment-dialog" role="dialog" aria-modal="true" aria-labelledby="assignment-title"><h3 id="assignment-title">Asignar personal</h3><div className="check-list">{workers.filter((worker) => worker.status === "active").map((worker) => <label className="check" key={String(worker.id)}><input type="checkbox" checked={selectedWorkers.includes(String(worker.id))} onChange={(e) => setSelectedWorkers((current) => e.target.checked ? [...current, String(worker.id)] : current.filter((id) => id !== String(worker.id)))} />{rowLabel(worker, 0)}</label>)}</div><div className="editor-actions"><button className="primary" onClick={saveAssignment}>Confirmar asignación</button><button className="ghost" onClick={() => setAssigning(null)}>Cancelar</button></div></section></div>}
     </section>
   );
