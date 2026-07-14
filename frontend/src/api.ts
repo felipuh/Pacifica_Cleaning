@@ -90,11 +90,11 @@ export async function requestPasswordReset(email: string): Promise<{ detail: str
   });
 }
 
-export async function listResource<T>(resource: string): Promise<{ results: T[] }> {
+export async function listResource<T>(resource: string): Promise<{ count: number; next: string | null; previous: string | null; results: T[] }> {
   return request(`/api/v1/${resource}/`);
 }
 
-export async function queryResource<T>(resource: string, params: URLSearchParams): Promise<{ count: number; results: T[] }> {
+export async function queryResource<T>(resource: string, params: URLSearchParams): Promise<{ count: number; next: string | null; previous: string | null; results: T[] }> {
   return request(`/api/v1/${resource}/?${params.toString()}`);
 }
 

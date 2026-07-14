@@ -38,6 +38,7 @@ import {
   updateResource
 } from "./api";
 import { benefits, coverageZones, faqs, processSteps, services, whatsappUrl } from "./content";
+import { Pagination, PaginationState } from "./Pagination";
 
 type View = "public" | "admin" | "policies" | "not-found";
 type ResourceRow = Record<string, unknown> & { id?: string; full_name?: string; display_name?: string; name_es?: string; name?: string; title?: string; status?: string };
@@ -140,6 +141,13 @@ function emptyResourceMap(): Record<ModuleKey, ResourceRow[]> {
     accumulator[module.key] = [];
     return accumulator;
   }, {} as Record<ModuleKey, ResourceRow[]>);
+}
+
+function emptyPaginationMap(): Record<ModuleKey, PaginationState> {
+  return adminModules.reduce((accumulator, module) => {
+    accumulator[module.key] = { page: 1, pageSize: 25, count: 0 };
+    return accumulator;
+  }, {} as Record<ModuleKey, PaginationState>);
 }
 
 export function App() {
@@ -581,6 +589,7 @@ function LoginPanel({ onLogin }: { onLogin: (user: SessionUser) => void }) {
 function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const [selectedModule, setSelectedModule] = useState<ModuleKey>("leads");
   const [resources, setResources] = useState<Record<ModuleKey, ResourceRow[]>>(() => emptyResourceMap());
+  const [pagination, setPagination] = useState<Record<ModuleKey, PaginationState>>(() => emptyPaginationMap());
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dashboard, setDashboard] = useState<DashboardMetrics | null>(null);
@@ -593,17 +602,20 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
   async function loadResources() {
     setLoading(true);
     const nextResources = emptyResourceMap();
+    const nextPagination = emptyPaginationMap();
     const nextErrors: Record<string, string> = {};
     await Promise.all(adminModules.map(async (module) => {
       try {
         const data = await listResource<ResourceRow>(module.endpoint);
         nextResources[module.key] = data.results;
+        nextPagination[module.key] = { page: 1, pageSize: 25, count: data.count };
       } catch {
         nextResources[module.key] = [];
         nextErrors[module.key] = "No se pudo cargar este módulo. Revise permisos, sesión o API.";
       }
     }));
     setResources(nextResources);
+    setPagination(nextPagination);
     setErrors(nextErrors);
     setLoading(false);
     getDashboard().then(setDashboard).catch(() => setDashboard(null));
@@ -621,13 +633,21 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
 
   async function filterSelected(event: React.FormEvent) {
     event.preventDefault();
+    await loadSelectedPage(1, pagination[selected.key].pageSize);
+  }
+
+  async function loadSelectedPage(page: number, pageSize: number, nextSearch = search, nextStatus = statusFilter) {
     setLoading(true);
     const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (statusFilter) params.set("status", statusFilter);
+    if (nextSearch) params.set("search", nextSearch);
+    if (nextStatus) params.set("status", nextStatus);
+    params.set("page", String(page));
+    params.set("page_size", String(pageSize));
     try {
       const data = await queryResource<ResourceRow>(selected.endpoint, params);
       setResources((current) => ({ ...current, [selected.key]: data.results }));
+      const totalPages = Math.max(1, Math.ceil(data.count / pageSize));
+      setPagination((current) => ({ ...current, [selected.key]: { page: Math.min(page, totalPages), pageSize, count: data.count } }));
       setErrors((current) => ({ ...current, [selected.key]: "" }));
     } catch {
       setErrors((current) => ({ ...current, [selected.key]: "No se pudo aplicar el filtro." }));
@@ -720,6 +740,7 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
             <label>Buscar<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nombre, correo, teléfono o zona" /></label>
             <label>Estado<input value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} placeholder="new, sent, completed…" /></label>
             <button className="ghost">Aplicar filtros</button>
+            <button className="ghost" type="button" onClick={() => { setSearch(""); setStatusFilter(""); void loadSelectedPage(1, pagination[selected.key].pageSize, "", ""); }}>Limpiar filtros</button>
           </form>
           {notice && <p className="success" role="status">{notice}</p>}
           {errors[selected.key] && <p className="error">{errors[selected.key]}</p>}
@@ -740,6 +761,7 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
               ))}
             </div>
           )}
+          <Pagination state={pagination[selected.key]} onChange={loadSelectedPage} />
           {showEditor && (
             <OperationalEditor
               module={selected.key}
