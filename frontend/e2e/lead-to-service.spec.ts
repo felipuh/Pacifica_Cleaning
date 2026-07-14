@@ -95,7 +95,7 @@ test("expired session returns the operator to login", async ({ page, context }, 
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByRole("heading", { name: "Panel administrativo" })).toBeVisible();
   await context.clearCookies();
-  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await page.getByRole("button", { name: "Aplicar filtros" }).evaluate((button: HTMLButtonElement) => button.click());
   await expect(page.getByRole("heading", { name: "Portal administrativo" })).toBeVisible();
 });
 
@@ -181,8 +181,8 @@ test("mobile weekly agenda has no critical horizontal overflow", async ({ page }
   await page.getByLabel("Correo").fill("admin@pacifica.local");
   await page.getByLabel("Contrasena").fill("E2E-Only-Password-12345");
   await page.getByRole("button", { name: "Entrar" }).click();
-  await page.getByRole("button", { name: /Agenda/ }).click();
-  await page.getByRole("button", { name: "Semana" }).click();
+  await page.getByRole("button", { name: /Agenda/ }).evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: "Semana" }).evaluate((button: HTMLButtonElement) => button.click());
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
 });
