@@ -166,6 +166,10 @@ SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
 SECURE_REFERRER_POLICY = "same-origin"
+# Browsers ignore COOP on plain-HTTP custom development domains because they
+# are not potentially trustworthy origins. Keep the protection for production
+# (HTTPS) without emitting a misleading header during local development.
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None if DEBUG else "same-origin"
 X_FRAME_OPTIONS = "DENY"
 
 # CSP compatible con Django 5 via django-csp
