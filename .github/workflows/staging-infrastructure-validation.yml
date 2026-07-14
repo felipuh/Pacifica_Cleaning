@@ -72,6 +72,7 @@ jobs:
 
       - name: Validate routes, static assets, and PostgreSQL version
         run: |
+          docker compose -p pacifica-cleaning-staging exec -T nginx nginx -t
           curl --fail --silent --show-error http://127.0.0.1:8088/ >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:8088/app >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:8088/legal >/dev/null
