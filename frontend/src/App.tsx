@@ -39,8 +39,8 @@ import {
 } from "./api";
 import { benefits, coverageZones, faqs, processSteps, services, whatsappUrl } from "./content";
 
-type View = "public" | "admin" | "policies";
-type ResourceRow = Record<string, unknown> & { id?: string; full_name?: string; name_es?: string; name?: string; title?: string; status?: string };
+type View = "public" | "admin" | "policies" | "not-found";
+type ResourceRow = Record<string, unknown> & { id?: string; full_name?: string; display_name?: string; name_es?: string; name?: string; title?: string; status?: string };
 type ModuleKey = "leads" | "customers" | "properties" | "services" | "quotes" | "work-orders" | "workers" | "payments" | "inventory-items";
 
 const adminModules: Array<{
@@ -149,8 +149,13 @@ export function App() {
   useEffect(() => {
     getMe().then(setUser).catch(() => undefined);
     const navigate = () => setViewState(viewFromPath(window.location.pathname));
+    const expireSession = () => setUser(null);
     window.addEventListener("popstate", navigate);
-    return () => window.removeEventListener("popstate", navigate);
+    window.addEventListener("pacifica:session-expired", expireSession);
+    return () => {
+      window.removeEventListener("popstate", navigate);
+      window.removeEventListener("pacifica:session-expired", expireSession);
+    };
   }, []);
 
   const setView = (nextView: View) => {
@@ -168,14 +173,16 @@ export function App() {
       {view === "public" && <PublicSite />}
       {view === "admin" && <AdminPortal user={user} onSessionChange={setUser} />}
       {view === "policies" && <Policies />}
+      {view === "not-found" && <NotFound setView={setView} />}
     </div>
   );
 }
 
 function viewFromPath(path: string): View {
+  if (path === "/") return "public";
   if (path.startsWith("/app")) return "admin";
   if (path.startsWith("/legal")) return "policies";
-  return "public";
+  return "not-found";
 }
 
 function pathForView(view: View): string {
@@ -642,9 +649,14 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
   const metrics = useMemo<Array<[string, string | number, typeof Users]>>(() => [
     ["Leads nuevos", dashboard?.leads_new ?? 0, Users],
     ["Leads pendientes", dashboard?.leads_pending ?? 0, Users],
+    ["Cotizaciones pendientes", dashboard?.quotes_pending ?? 0, ClipboardCheck],
     ["Cotizaciones enviadas", dashboard?.quotes_sent ?? 0, ClipboardCheck],
+    ["Cotizaciones aceptadas", dashboard?.quotes_accepted ?? 0, BadgeCheck],
     ["Servicios próximos", dashboard?.services_upcoming ?? 0, CalendarDays],
+    ["Servicios completados", dashboard?.services_completed ?? 0, CheckCircle2],
+    ["Clientes recurrentes", dashboard?.recurrent_customers ?? 0, Home],
     ["Ingresos estimados", dashboard ? formatMoney(dashboard.estimated_revenue) : "—", DollarSign],
+    ["Ingresos confirmados", dashboard ? formatMoney(dashboard.confirmed_revenue) : "—", DollarSign],
     ["Conversión", dashboard ? `${dashboard.conversion_rate}%` : "—", BadgeCheck]
   ], [dashboard]);
 
@@ -837,9 +849,9 @@ function OperationalEditor({
             <label className="wide">Acceso protegido<textarea value={String(form.access_instructions)} onChange={(e) => field("access_instructions", e.target.value)} /></label>
           </>}
           {module === "quotes" && <>
-            <label>Cliente<select required value={String(form.customer)} onChange={(e) => field("customer", e.target.value)}><option value="">Seleccione</option>{resources.customers.map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
-            <label>Propiedad<select required value={String(form.property)} onChange={(e) => field("property", e.target.value)}><option value="">Seleccione</option>{resources.properties.filter((item) => !form.customer || item.customer === form.customer).map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
-            <label>Servicio<select required value={String(form.service)} onChange={(e) => field("service", e.target.value)}><option value="">Seleccione</option>{resources.services.map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
+            <label>Cliente<select name="quote_customer" required value={String(form.customer)} onChange={(e) => field("customer", e.target.value)}><option value="">Seleccione</option>{resources.customers.map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
+            <label>Propiedad<select name="quote_property" required value={String(form.property)} onChange={(e) => field("property", e.target.value)}><option value="">Seleccione</option>{resources.properties.filter((item) => !form.customer || item.customer === form.customer).map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
+            <label>Servicio<select name="quote_service" required value={String(form.service)} onChange={(e) => field("service", e.target.value)}><option value="">Seleccione</option>{resources.services.map((item) => <option key={String(item.id)} value={String(item.id)}>{rowLabel(item, 0)}</option>)}</select></label>
             <label>Descripción<input required value={String(form.description)} onChange={(e) => field("description", e.target.value)} /></label>
             <label>Cantidad<input type="number" min="0.01" step="0.01" value={String(form.quantity)} onChange={(e) => field("quantity", e.target.value)} /></label>
             <label>Precio unitario<input type="number" min="0" step="0.01" value={String(form.unit_price)} onChange={(e) => field("unit_price", e.target.value)} /></label>
@@ -937,7 +949,7 @@ function formatMoney(value: string) {
 }
 
 function rowLabel(row: ResourceRow, index: number) {
-  return String(row.full_name ?? row.name_es ?? row.name ?? row.title ?? row.id ?? `Registro ${index + 1}`);
+  return String(row.full_name ?? row.display_name ?? row.name_es ?? row.name ?? row.title ?? row.id ?? `Registro ${index + 1}`);
 }
 
 function formatFieldName(field: string) {
@@ -974,4 +986,8 @@ function Policies() {
       <p>Los expedientes de personal laboral y prestadores independientes se mantienen separados para evitar mezclar obligaciones y controles.</p>
     </main>
   );
+}
+
+function NotFound({ setView }: { setView: (view: View) => void }) {
+  return <main className="section legal"><p className="eyebrow">404</p><h1>Página no encontrada</h1><p>La ruta solicitada no existe.</p><button className="primary" onClick={() => setView("public")}>Volver al inicio</button></main>;
 }

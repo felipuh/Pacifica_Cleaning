@@ -6,7 +6,7 @@ from .serializers import ExpenseSerializer, PaymentSerializer
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
-    queryset = Payment.objects.select_related("customer", "work_order").all()
+    queryset = Payment.objects.select_related("customer", "work_order").all().order_by("-paid_at", "-created_at")
     serializer_class = PaymentSerializer
     permission_classes = [RoleActionPermission]
     action_roles = {
@@ -20,7 +20,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
 
 class ExpenseViewSet(viewsets.ModelViewSet):
-    queryset = Expense.objects.select_related("work_order").all()
+    queryset = Expense.objects.select_related("work_order").all().order_by("-incurred_at", "-created_at")
     serializer_class = ExpenseSerializer
     permission_classes = [RoleActionPermission]
     action_roles = PaymentViewSet.action_roles

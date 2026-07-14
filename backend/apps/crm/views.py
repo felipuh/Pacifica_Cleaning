@@ -186,7 +186,7 @@ class ContactViewSet(viewsets.ModelViewSet):
 
 
 class PropertyViewSet(viewsets.ModelViewSet):
-    queryset = Property.objects.select_related("customer").all()
+    queryset = Property.objects.select_related("customer").all().order_by("name")
     serializer_class = PropertySerializer
     permission_classes = [RoleActionPermission]
     action_roles = CustomerViewSet.action_roles

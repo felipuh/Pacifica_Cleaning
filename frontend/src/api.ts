@@ -31,6 +31,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   if (!response.ok) {
     const details = await response.json().catch(() => ({ detail: "Error inesperado" }));
+    if (
+      (response.status === 401 || response.status === 403) &&
+      typeof details.detail === "string" &&
+      /authentication credentials|not authenticated/i.test(details.detail)
+    ) {
+      window.dispatchEvent(new Event("pacifica:session-expired"));
+    }
     throw new Error(JSON.stringify(details));
   }
   if (response.status === 204) {
