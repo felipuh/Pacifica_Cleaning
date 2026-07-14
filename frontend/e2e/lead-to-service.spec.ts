@@ -99,10 +99,90 @@ test("expired session returns the operator to login", async ({ page, context }, 
   await expect(page.getByRole("heading", { name: "Portal administrativo" })).toBeVisible();
 });
 
+test("P1 pagination, assignments, rescheduling, weekly filters and history", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes("mobile"), "Desktop project covers P1 mutations");
+  await page.goto("/app");
+  await page.getByLabel("Correo").fill("admin@pacifica.local");
+  await page.getByLabel("Contrasena").fill("E2E-Only-Password-12345");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByRole("heading", { name: "Panel administrativo" })).toBeVisible();
+
+  const fixture = await page.evaluate(async () => {
+    const csrf = await fetch("/api/auth/csrf/", { credentials: "include" }).then((response) => response.json()).then((data) => data.csrfToken as string);
+    const headers = { "Content-Type": "application/json", "X-CSRFToken": csrf };
+    for (let index = 0; index < 28; index += 1) {
+      await fetch("/api/v1/leads/", { method: "POST", credentials: "include", headers, body: JSON.stringify({ full_name: `Paginación P1 ${index}`, phone: `7000${String(index).padStart(4, "0")}`, consent_data_processing: true }) });
+    }
+    const customers = await fetch("/api/v1/customers/?page_size=100", { credentials: "include" }).then((response) => response.json());
+    const customer = customers.results[0] ?? await fetch("/api/v1/customers/", { method: "POST", credentials: "include", headers, body: JSON.stringify({ display_name: "Cliente P1 E2E", phone: "82220000", customer_type: "individual" }) }).then((response) => response.json());
+    const properties = await fetch("/api/v1/properties/?page_size=100", { credentials: "include" }).then((response) => response.json());
+    const property = properties.results[0] ?? await fetch("/api/v1/properties/", { method: "POST", credentials: "include", headers, body: JSON.stringify({ customer: customer.id, name: "Propiedad P1 E2E", address: "Tempate", zone: "Tempate", property_type: "home" }) }).then((response) => response.json());
+    const worker = await fetch("/api/v1/workers/", { method: "POST", credentials: "include", headers, body: JSON.stringify({ full_name: "Personal P1 E2E", phone: "81110000", worker_type: "employee", status: "active" }) }).then((response) => response.json());
+    const date = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    const order = await fetch("/api/v1/work-orders/", { method: "POST", credentials: "include", headers, body: JSON.stringify({ customer: customer.id, property: property.id, scheduled_start: `${date}T09:00:00Z`, scheduled_end: `${date}T11:00:00Z`, price: "30000.00" }) }).then((response) => response.json());
+    return { date, workerId: worker.id as string, orderId: order.id as string };
+  });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Panel administrativo" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Leads/ }).click();
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await expect(page.getByText(/Página 1 de 2/)).toBeVisible();
+  await page.getByRole("button", { name: "Página siguiente" }).click();
+  await expect(page.getByText(/Página 2 de 2/)).toBeVisible();
+  await page.getByLabel("Buscar").fill("Paginación P1 27");
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await expect(page.getByText(/Página 1 de 1/)).toBeVisible();
+
+  await page.getByRole("button", { name: /Agenda/ }).click();
+  await page.getByLabel("Fecha").fill(fixture.date);
+  await expect(page.getByText("Sin asignar")).toBeVisible();
+  await page.getByRole("button", { name: "Asignar personal" }).click();
+  await page.getByRole("checkbox", { name: "Personal P1 E2E" }).check();
+  await page.getByRole("button", { name: "Confirmar asignación" }).click();
+  await expect(page.getByText(/Personal: Personal P1 E2E/)).toBeVisible();
+  await page.getByRole("button", { name: "Reprogramar" }).click();
+  await page.getByLabel("Nuevo inicio").fill(`${fixture.date}T13:00`);
+  await page.getByLabel("Nuevo fin").fill(`${fixture.date}T15:00`);
+  await page.getByLabel("Motivo").fill("Ajuste operativo E2E");
+  await page.getByRole("button", { name: "Confirmar reprogramación" }).click();
+  await expect(page.getByText(/13:00|1:00 p. m./).first()).toBeVisible();
+  await page.evaluate(async ({ orderId, workerId, date }) => {
+    const csrf = await fetch("/api/auth/csrf/", { credentials: "include" }).then((response) => response.json()).then((data) => data.csrfToken as string);
+    const order = await fetch(`/api/v1/work-orders/${orderId}/`, { credentials: "include" }).then((response) => response.json());
+    await fetch("/api/v1/work-orders/", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-CSRFToken": csrf }, body: JSON.stringify({ customer: order.customer, property: order.property, scheduled_start: `${date}T16:00:00-06:00`, scheduled_end: `${date}T18:00:00-06:00`, assignments: [{ worker: workerId, role: "Limpieza" }] }) });
+  }, fixture);
+  await page.getByRole("button", { name: "Reprogramar" }).click();
+  await page.getByLabel("Nuevo inicio").fill(`${fixture.date}T16:30`);
+  await page.getByLabel("Nuevo fin").fill(`${fixture.date}T17:30`);
+  await page.getByLabel("Motivo").fill("Conflicto controlado E2E");
+  await page.getByRole("button", { name: "Confirmar reprogramación" }).click();
+  await expect(page.getByText(/conflicto de agenda/i)).toBeVisible();
+  await page.getByRole("button", { name: "Cancelar" }).click();
+  await page.getByRole("button", { name: "Semana" }).click();
+  await page.locator(".agenda-toolbar").getByLabel("Estado").selectOption("planned");
+  await page.locator(".agenda-toolbar").getByLabel("Personal").selectOption(fixture.workerId);
+  await expect(page.locator(".agenda-card")).toHaveCount(2);
+  await page.locator(".agenda-card").filter({ hasText: /13:00|1:00 p. m./ }).getByText(/Historial/).click();
+  await expect(page.getByText(/Reprogramado/)).toBeVisible();
+});
+
 test("mobile public view has no horizontal overflow", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("mobile"), "Mobile project only");
   await page.goto("/");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
   await expect(page.getByRole("heading", { name: /Limpieza profesional/ })).toBeVisible();
+});
+
+test("mobile weekly agenda has no critical horizontal overflow", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("mobile"), "Mobile project only");
+  await page.goto("/app");
+  await page.getByLabel("Correo").fill("admin@pacifica.local");
+  await page.getByLabel("Contrasena").fill("E2E-Only-Password-12345");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByRole("button", { name: /Agenda/ }).click();
+  await page.getByRole("button", { name: "Semana" }).click();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
 });
