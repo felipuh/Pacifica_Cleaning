@@ -12,7 +12,7 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import serializers, status, viewsets
-from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -40,7 +40,16 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by("first_name", "last_name", "email")
     serializer_class = UserManagementSerializer
     permission_classes = [RoleActionPermission]
-    action_roles = {action: ADMIN_ROLES for action in ("list", "retrieve", "create", "update", "partial_update", "destroy")}
+    action_roles = {name: ADMIN_ROLES for name in ("list", "retrieve", "create", "update", "partial_update", "destroy")}
+    action_roles["eligible_lead_assignees"] = {"superadmin", "managing_partner", "operations", "sales"}
+
+    @action(detail=False, methods=["get"], url_path="eligible-lead-assignees")
+    def eligible_lead_assignees(self, request):
+        eligible = self.get_queryset().filter(
+            is_active=True,
+            role__in=(User.Role.SUPERADMIN, User.Role.MANAGING_PARTNER, User.Role.OPERATIONS, User.Role.SALES),
+        )
+        return Response(UserSerializer(eligible, many=True).data)
 
 
 def _client_ip(request) -> str | None:

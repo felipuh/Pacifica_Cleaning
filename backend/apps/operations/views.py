@@ -1,8 +1,10 @@
 from django.core.exceptions import ValidationError
-from rest_framework import decorators, response, serializers, viewsets
+from django.db import transaction
+from rest_framework import decorators, response, serializers, status, viewsets
 
 from apps.core.permissions import ADMIN_ROLES, OPERATIONS_ROLES, QUALITY_ROLES, READ_ONLY_ROLES, STAFF_ROLES, RoleActionPermission
-from .models import WorkOrder, WorkOrderStatusHistory
+from apps.people.models import WorkerProfile
+from .models import Assignment, WorkOrder, WorkOrderStatusHistory
 from .serializers import WorkOrderSerializer
 
 
@@ -19,6 +21,7 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         "destroy": ADMIN_ROLES,
         "transition": OPERATIONS_ROLES | QUALITY_ROLES,
         "reschedule": OPERATIONS_ROLES,
+        "assign": OPERATIONS_ROLES,
     }
 
     def get_queryset(self):
@@ -57,13 +60,49 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def reschedule(self, request, pk=None):
-        work_order = self.get_object()
-        serializer = self.get_serializer(work_order, data={"scheduled_start": request.data.get("scheduled_start"), "scheduled_end": request.data.get("scheduled_end")}, partial=True)
-        serializer.is_valid(raise_exception=True)
-        start, end = serializer.validated_data["scheduled_start"], serializer.validated_data["scheduled_end"]
-        worker_ids = work_order.assignments.values_list("worker_id", flat=True)
-        conflict = WorkOrder.objects.filter(assignments__worker_id__in=worker_ids, scheduled_start__lt=end, scheduled_end__gt=start).exclude(pk=work_order.pk).exists()
-        if conflict:
-            raise serializers.ValidationError("El personal asignado tiene un conflicto de agenda.")
-        serializer.save()
+        with transaction.atomic():
+            work_order = WorkOrder.objects.select_for_update().get(pk=self.get_object().pk)
+            if work_order.status in {WorkOrder.Status.COMPLETED, WorkOrder.Status.CANCELLED}:
+                raise serializers.ValidationError("No se puede reprogramar un servicio finalizado o cancelado.")
+            expected = request.data.get("expected_updated_at")
+            if expected and expected != work_order.updated_at.isoformat().replace("+00:00", "Z"):
+                return response.Response({"detail": "El servicio cambió; recargue antes de reprogramar."}, status=status.HTTP_409_CONFLICT)
+            serializer = self.get_serializer(work_order, data={"scheduled_start": request.data.get("scheduled_start"), "scheduled_end": request.data.get("scheduled_end")}, partial=True)
+            serializer.is_valid(raise_exception=True)
+            start, end = serializer.validated_data["scheduled_start"], serializer.validated_data["scheduled_end"]
+            worker_ids = work_order.assignments.values_list("worker_id", flat=True)
+            conflict = WorkOrder.objects.filter(assignments__worker_id__in=worker_ids, scheduled_start__lt=end, scheduled_end__gt=start).exclude(pk=work_order.pk).exists()
+            if conflict:
+                return response.Response({"detail": "El personal asignado tiene un conflicto de agenda."}, status=status.HTTP_409_CONFLICT)
+            serializer.save()
+            WorkOrderStatusHistory.objects.create(
+                work_order=work_order, from_status=work_order.status, to_status=work_order.status,
+                notes=f"Reprogramado. Motivo: {request.data.get('reason', '').strip() or 'No indicado'}", changed_by=request.user,
+            )
         return response.Response(serializer.data)
+
+    @decorators.action(detail=True, methods=["post"])
+    def assign(self, request, pk=None):
+        worker_ids = request.data.get("worker_ids")
+        if not isinstance(worker_ids, list) or len(worker_ids) != len(set(worker_ids)):
+            raise serializers.ValidationError({"worker_ids": "Indique una lista de personal sin duplicados."})
+        with transaction.atomic():
+            work_order = WorkOrder.objects.select_for_update().get(pk=self.get_object().pk)
+            workers = list(WorkerProfile.objects.filter(pk__in=worker_ids, status=WorkerProfile.Status.ACTIVE))
+            if len(workers) != len(worker_ids):
+                raise serializers.ValidationError({"worker_ids": "Todo el personal debe existir y estar activo."})
+            candidates = [Assignment(work_order=work_order, worker=worker) for worker in workers]
+            for assignment in candidates:
+                try:
+                    assignment.full_clean()
+                except ValidationError as error:
+                    return response.Response({"detail": error.messages[0]}, status=status.HTTP_409_CONFLICT)
+            previous = list(work_order.assignments.values_list("worker__full_name", flat=True))
+            work_order.assignments.all().delete()
+            Assignment.objects.bulk_create(candidates)
+            names = ", ".join(worker.full_name for worker in workers) or "Sin personal"
+            WorkOrderStatusHistory.objects.create(
+                work_order=work_order, from_status=work_order.status, to_status=work_order.status,
+                notes=f"Asignación actualizada: {', '.join(previous) or 'Sin personal'} → {names}.", changed_by=request.user,
+            )
+        return response.Response(self.get_serializer(work_order).data)

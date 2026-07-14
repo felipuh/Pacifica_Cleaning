@@ -114,14 +114,28 @@ class QuoteAndServiceApiTests(TestCase):
         started = client.post(f"/api/v1/work-orders/{first.pk}/transition/", {"status": "in_progress"}, format="json")
         completed = client.post(f"/api/v1/work-orders/{first.pk}/transition/", {"status": "completed"}, format="json")
 
-        self.assertEqual(conflict.status_code, 400)
+        self.assertEqual(conflict.status_code, 409)
         self.assertEqual(valid.status_code, 200)
+        self.assertIn("Reprogramado", valid.json()["status_history"][0]["notes"])
         self.assertEqual(confirmed.status_code, 200)
         self.assertEqual(started.status_code, 200)
         self.assertEqual(completed.status_code, 200)
         first.refresh_from_db()
         self.assertIsNotNone(first.started_at)
         self.assertIsNotNone(first.completed_at)
+
+    def test_completed_service_cannot_be_rescheduled(self):
+        start = timezone.now() + timedelta(days=5)
+        order = WorkOrder.objects.create(
+            customer=self.customer, property=self.property, scheduled_start=start,
+            scheduled_end=start + timedelta(hours=2), status=WorkOrder.Status.COMPLETED,
+        )
+        result = self.client_for(self.operations).post(
+            f"/api/v1/work-orders/{order.pk}/reschedule/",
+            {"scheduled_start": (start + timedelta(days=1)).isoformat(), "scheduled_end": (start + timedelta(days=1, hours=2)).isoformat()},
+            format="json",
+        )
+        self.assertEqual(result.status_code, 400)
 
     def test_dashboard_reports_only_persisted_operational_data(self):
         Quote.objects.create(

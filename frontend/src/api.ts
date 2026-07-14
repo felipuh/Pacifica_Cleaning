@@ -94,6 +94,11 @@ export async function listResource<T>(resource: string): Promise<{ count: number
   return request(`/api/v1/${resource}/`);
 }
 
+export async function listEligibleLeadAssignees(): Promise<SessionUser[]> {
+  const data = await request<SessionUser[] | { results: SessionUser[] }>("/api/v1/users/eligible-lead-assignees/");
+  return Array.isArray(data) ? data : data.results;
+}
+
 export async function queryResource<T>(resource: string, params: URLSearchParams): Promise<{ count: number; next: string | null; previous: string | null; results: T[] }> {
   return request(`/api/v1/${resource}/?${params.toString()}`);
 }

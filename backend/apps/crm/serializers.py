@@ -48,6 +48,7 @@ class PublicLeadSerializer(serializers.ModelSerializer):
 class LeadSerializer(serializers.ModelSerializer):
     activities = LeadActivitySerializer(many=True, read_only=True)
     converted_customer_id = serializers.UUIDField(source="converted_customer.id", read_only=True)
+    assigned_to_name = serializers.CharField(source="assigned_to.get_full_name", read_only=True)
 
     class Meta:
         model = Lead
@@ -62,6 +63,9 @@ class LeadSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Debe indicar correo o telefono.")
         if not consent:
             raise serializers.ValidationError("El consentimiento de tratamiento de datos es obligatorio.")
+        assignee = attrs.get("assigned_to")
+        if assignee and (not assignee.is_active or assignee.role not in {"superadmin", "managing_partner", "operations", "sales"}):
+            raise serializers.ValidationError({"assigned_to": "El responsable debe ser un usuario activo y elegible."})
         return attrs
 
 

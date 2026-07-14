@@ -49,4 +49,23 @@ describe("App", () => {
     await waitFor(() => expect(requests.some((item) => item.url.endsWith("/api/v1/leads/") && item.method === "POST")).toBe(true));
     expect(await screen.findByText("Registro creado.")).toBeInTheDocument();
   });
+
+  it("queries the weekly agenda with persisted operational filters", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.endsWith("/api/auth/me/")) return Response.json({ id: "user-1", email: "ops@example.test", first_name: "Ops", last_name: "Test", role: "operations" });
+      if (url.endsWith("/api/v1/users/eligible-lead-assignees/")) return Response.json([]);
+      if (url.endsWith("/api/v1/dashboard/")) return Response.json({ leads_new: 0, leads_pending: 0, quotes_pending: 0, quotes_sent: 0, quotes_accepted: 0, services_upcoming: 0, services_completed: 0, recurrent_customers: 0, estimated_revenue: "0", confirmed_revenue: "0", conversion_rate: 0, recent_activity: [] });
+      return Response.json({ count: 0, next: null, previous: null, results: [] });
+    }));
+    window.history.replaceState({}, "", "/app");
+    render(<App />);
+    await screen.findByRole("heading", { name: /panel administrativo/i });
+    fireEvent.click(screen.getByRole("button", { name: /Agenda/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Semana" }));
+    fireEvent.change(screen.getByLabelText("Estado", { selector: "select" }), { target: { value: "confirmed" } });
+    await waitFor(() => expect(urls.some((url) => url.includes("work-orders/?") && url.includes("status=confirmed") && url.includes("date_from=") && url.includes("date_to="))).toBe(true));
+  });
 });

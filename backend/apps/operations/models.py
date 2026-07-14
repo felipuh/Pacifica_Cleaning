@@ -70,7 +70,7 @@ class Assignment(TimeStampedUUIDModel):
             worker=self.worker,
             work_order__scheduled_start__lt=self.work_order.scheduled_end,
             work_order__scheduled_end__gt=self.work_order.scheduled_start,
-        ).exclude(pk=self.pk)
+        ).exclude(work_order=self.work_order).exclude(pk=self.pk)
         if qs.exists():
             raise ValidationError("La persona asignada ya tiene un servicio en ese horario.")
 

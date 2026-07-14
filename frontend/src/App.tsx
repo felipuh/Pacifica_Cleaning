@@ -29,6 +29,7 @@ import {
   getDashboard,
   getMe,
   listResource,
+  listEligibleLeadAssignees,
   login,
   logout,
   queryResource,
@@ -598,6 +599,7 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
   const [editing, setEditing] = useState<ResourceRow | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [notice, setNotice] = useState("");
+  const [eligibleAssignees, setEligibleAssignees] = useState<SessionUser[]>([]);
 
   async function loadResources() {
     setLoading(true);
@@ -619,6 +621,7 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
     setErrors(nextErrors);
     setLoading(false);
     getDashboard().then(setDashboard).catch(() => setDashboard(null));
+    listEligibleLeadAssignees().then(setEligibleAssignees).catch(() => setEligibleAssignees([]));
   }
 
   useEffect(() => {
@@ -767,11 +770,12 @@ function Dashboard({ user, onLogout }: { user: SessionUser; onLogout: () => void
               module={selected.key}
               row={editing}
               resources={resources}
+              eligibleAssignees={eligibleAssignees}
               onClose={() => setShowEditor(false)}
               onSaved={async (message) => { setShowEditor(false); setNotice(message); await loadResources(); }}
             />
           )}
-          {selected.key === "work-orders" && <Agenda rows={selectedRows} onChanged={loadResources} canEdit={canEdit} />}
+          {selected.key === "work-orders" && <Agenda workers={resources.workers} canEdit={canEdit} />}
           {dashboard && selected.key === "leads" && (
             <section className="recent-activity">
               <h3>Actividad reciente</h3>
@@ -788,12 +792,14 @@ function OperationalEditor({
   module,
   row,
   resources,
+  eligibleAssignees,
   onClose,
   onSaved
 }: {
   module: ModuleKey;
   row: ResourceRow | null;
   resources: Record<ModuleKey, ResourceRow[]>;
+  eligibleAssignees: SessionUser[];
   onClose: () => void;
   onSaved: (message: string) => Promise<void>;
 }) {
@@ -845,6 +851,7 @@ function OperationalEditor({
             <label>Teléfono<input required value={String(form.phone)} onChange={(e) => field("phone", e.target.value)} /></label>
             <label>Servicio<input value={String(form.requested_service)} onChange={(e) => field("requested_service", e.target.value)} /></label>
             <label>Estado<select value={String(form.status)} onChange={(e) => field("status", e.target.value)}><option value="new">Nuevo</option><option value="contacted">Contactado</option><option value="qualified">Calificado</option><option value="lost">Perdido</option><option value="won">Convertido</option></select></label>
+            <label>Responsable<select value={String(form.assigned_to)} onChange={(e) => field("assigned_to", e.target.value)}><option value="">Sin asignar</option>{eligibleAssignees.map((item) => <option key={item.id} value={item.id}>{`${item.first_name} ${item.last_name}`.trim() || item.email}</option>)}</select></label>
             <label className="wide">Notas<textarea value={String(form.notes)} onChange={(e) => field("notes", e.target.value)} /></label>
             <label className="check"><input type="checkbox" checked={Boolean(form.consent_data_processing)} onChange={(e) => field("consent_data_processing", e.target.checked)} /> Consentimiento de datos</label>
           </>}
@@ -886,6 +893,7 @@ function OperationalEditor({
             {row && <p className="wide">Los totales mostrados se recalculan exclusivamente en Django.</p>}
           </>}
           {error && <p className="error wide" role="alert">{error}</p>}
+          {row && <div className="wide"><ConsolidatedHistory module={module} row={row} /></div>}
           <div className="editor-actions wide">
             <button className="primary" disabled={saving}>{saving ? "Guardando…" : "Guardar"}</button>
             <button className="ghost" type="button" onClick={onClose}>Cancelar</button>
@@ -899,46 +907,125 @@ function OperationalEditor({
   );
 }
 
-function Agenda({ rows, onChanged, canEdit }: { rows: ResourceRow[]; onChanged: () => Promise<void>; canEdit: boolean }) {
+function Agenda({ workers, canEdit }: { workers: ResourceRow[]; canEdit: boolean }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [date, setDate] = useState(today);
+  const [anchor, setAnchor] = useState(today);
+  const [viewMode, setViewMode] = useState<"day" | "week">("day");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [workerFilter, setWorkerFilter] = useState("");
+  const [rows, setRows] = useState<ResourceRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const visible = rows.filter((row) => String(row.scheduled_start ?? "").slice(0, 10) === date);
+  const [rescheduling, setRescheduling] = useState<ResourceRow | null>(null);
+  const [assigning, setAssigning] = useState<ResourceRow | null>(null);
+  const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
+  const range = agendaRange(anchor, viewMode);
 
-  async function transition(row: ResourceRow, status: string) {
-    if (!row.id) return;
+  async function loadAgenda() {
+    setLoading(true);
     setError("");
+    const params = new URLSearchParams({ date_from: range.start, date_to: range.end, page_size: "100" });
+    if (statusFilter) params.set("status", statusFilter);
+    if (workerFilter) params.set("worker", workerFilter);
     try {
-      await resourceAction("work-orders", row.id, "transition", { status });
-      await onChanged();
+      setRows((await queryResource<ResourceRow>("work-orders", params)).results);
     } catch (caught) {
       setError(apiErrorMessage(caught));
+    } finally {
+      setLoading(false);
     }
   }
 
+  useEffect(() => { void loadAgenda(); }, [anchor, viewMode, statusFilter, workerFilter]);
+
+  async function transition(row: ResourceRow, status: string) {
+    if (!row.id) return;
+    try { await resourceAction("work-orders", row.id, "transition", { status }); await loadAgenda(); }
+    catch (caught) { setError(apiErrorMessage(caught)); }
+  }
+
+  async function saveAssignment() {
+    if (!assigning?.id) return;
+    try { await resourceAction("work-orders", assigning.id, "assign", { worker_ids: selectedWorkers }); setAssigning(null); await loadAgenda(); }
+    catch (caught) { setError(apiErrorMessage(caught)); }
+  }
+
+  const days = dateSequence(range.start, range.end);
   return (
-    <section className="agenda-panel">
-      <div className="module-heading"><div><p className="eyebrow">Vista diaria</p><h3>Agenda operativa</h3></div><label>Fecha<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></div>
-      {error && <p className="error">{error}</p>}
-      {visible.length === 0 && <p>No hay servicios programados para esta fecha.</p>}
-      <div className="agenda-grid">
-        {visible.map((row) => <article className="agenda-card" key={String(row.id)}>
-          <strong>{formatValue(row.scheduled_start)}</strong>
-          <span>{rowLabel(row, 0)}</span><span>{formatValue(row.status)}</span>
-          {canEdit && <div className="admin-actions">
-            {row.status === "planned" && <button className="ghost" onClick={() => transition(row, "confirmed")}>Confirmar</button>}
-            {row.status === "confirmed" && <button className="ghost" onClick={() => transition(row, "in_progress")}>Iniciar</button>}
-            {row.status === "in_progress" && <button className="ghost" onClick={() => transition(row, "completed")}>Finalizar</button>}
-          </div>}
-        </article>)}
+    <section className="agenda-panel" aria-label="Agenda operativa">
+      <div className="module-heading"><div><p className="eyebrow">Vista {viewMode === "day" ? "diaria" : "semanal"}</p><h3>Agenda operativa</h3><p>{range.start} — {range.end}</p></div>
+        <div className="admin-actions"><button className={viewMode === "day" ? "primary" : "ghost"} onClick={() => setViewMode("day")}>Día</button><button className={viewMode === "week" ? "primary" : "ghost"} onClick={() => setViewMode("week")}>Semana</button></div>
       </div>
+      <div className="agenda-toolbar">
+        <button className="ghost" onClick={() => setAnchor(shiftDate(anchor, viewMode === "day" ? -1 : -7))} aria-label="Periodo anterior">Anterior</button>
+        <button className="ghost" onClick={() => setAnchor(today)}>Hoy</button>
+        <button className="ghost" onClick={() => setAnchor(shiftDate(anchor, viewMode === "day" ? 1 : 7))} aria-label="Periodo siguiente">Siguiente</button>
+        <label>Fecha<input type="date" value={anchor} onChange={(e) => setAnchor(e.target.value)} /></label>
+        <label>Estado<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Todos</option><option value="planned">Planificado</option><option value="confirmed">Confirmado</option><option value="in_progress">En proceso</option><option value="completed">Completado</option><option value="cancelled">Cancelado</option></select></label>
+        <label>Personal<select value={workerFilter} onChange={(e) => setWorkerFilter(e.target.value)}><option value="">Todo el personal</option>{workers.filter((worker) => worker.status === "active").map((worker) => <option key={String(worker.id)} value={String(worker.id)}>{rowLabel(worker, 0)}</option>)}</select></label>
+        {(statusFilter || workerFilter) && <button className="ghost" onClick={() => { setStatusFilter(""); setWorkerFilter(""); }}>Limpiar filtros</button>}
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+      {loading && <p role="status">Cargando agenda…</p>}
+      {!loading && rows.length === 0 && <p>No hay servicios para el periodo y filtros seleccionados.</p>}
+      <div className={viewMode === "week" ? "agenda-week" : "agenda-grid"}>
+        {days.map((day) => <section className="agenda-day" key={day}><h4>{new Intl.DateTimeFormat("es-CR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`))}</h4>
+          {rows.filter((row) => String(row.scheduled_start).slice(0, 10) === day).map((row) => {
+            const assignments = Array.isArray(row.assignments) ? row.assignments as ResourceRow[] : [];
+            return <article className="agenda-card" key={String(row.id)}>
+              <strong>{formatValue(row.scheduled_start)}</strong><span>{String(row.customer_name ?? "Cliente")}</span><span>{String(row.property_name ?? "Propiedad")}</span><span>Estado: {formatValue(row.status)}</span><span>Personal: {assignments.map((item) => String(item.worker_name)).join(", ") || "Sin asignar"}</span>
+              {canEdit && <div className="admin-actions"><button className="ghost" onClick={() => setRescheduling(row)}>Reprogramar</button><button className="ghost" onClick={() => { setAssigning(row); setSelectedWorkers(assignments.map((item) => String(item.worker))); }}>Asignar personal</button>
+                {row.status === "planned" && <button className="ghost" onClick={() => transition(row, "confirmed")}>Confirmar</button>}{row.status === "confirmed" && <button className="ghost" onClick={() => transition(row, "in_progress")}>Iniciar</button>}{row.status === "in_progress" && <button className="ghost" onClick={() => transition(row, "completed")}>Finalizar</button>}
+              </div>}
+              <HistoryTimeline row={row} />
+            </article>;
+          })}
+        </section>)}
+      </div>
+      {rescheduling && <RescheduleDialog row={rescheduling} onClose={() => setRescheduling(null)} onSaved={async () => { setRescheduling(null); await loadAgenda(); }} />}
+      {assigning && <div className="modal-backdrop"><section className="editor-panel assignment-dialog" role="dialog" aria-modal="true" aria-labelledby="assignment-title"><h3 id="assignment-title">Asignar personal</h3><div className="check-list">{workers.filter((worker) => worker.status === "active").map((worker) => <label className="check" key={String(worker.id)}><input type="checkbox" checked={selectedWorkers.includes(String(worker.id))} onChange={(e) => setSelectedWorkers((current) => e.target.checked ? [...current, String(worker.id)] : current.filter((id) => id !== String(worker.id)))} />{rowLabel(worker, 0)}</label>)}</div><div className="editor-actions"><button className="primary" onClick={saveAssignment}>Confirmar asignación</button><button className="ghost" onClick={() => setAssigning(null)}>Cancelar</button></div></section></div>}
     </section>
   );
 }
 
+function RescheduleDialog({ row, onClose, onSaved }: { row: ResourceRow; onClose: () => void; onSaved: () => Promise<void> }) {
+  const local = (value: unknown) => String(value ?? "").slice(0, 16);
+  const [start, setStart] = useState(local(row.scheduled_start));
+  const [end, setEnd] = useState(local(row.scheduled_end));
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  async function submit(event: React.FormEvent) { event.preventDefault(); try { await resourceAction("work-orders", String(row.id), "reschedule", { scheduled_start: start, scheduled_end: end, reason }); await onSaved(); } catch (caught) { setError(apiErrorMessage(caught)); } }
+  return <div className="modal-backdrop"><section className="editor-panel" role="dialog" aria-modal="true" aria-labelledby="reschedule-title"><h3 id="reschedule-title">Reprogramar servicio</h3><form className="editor-form" onSubmit={submit}><label>Nuevo inicio<input required type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></label><label>Nuevo fin<input required type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} /></label><label className="wide">Motivo<textarea required value={reason} onChange={(e) => setReason(e.target.value)} /></label>{error && <p className="error wide" role="alert">{error}</p>}<div className="editor-actions wide"><button className="primary">Confirmar reprogramación</button><button className="ghost" type="button" onClick={onClose}>Cancelar</button></div></form></section></div>;
+}
+
+function HistoryTimeline({ row }: { row: ResourceRow }) {
+  const events = Array.isArray(row.status_history) ? row.status_history as ResourceRow[] : [];
+  if (!events.length) return <details><summary>Historial</summary><p>Sin actividad registrada.</p></details>;
+  return <details><summary>Historial ({events.length})</summary><ol className="history-timeline">{events.map((event, index) => <li key={String(event.id ?? index)}><time>{formatValue(event.created_at)}</time><strong>{String(event.from_status || "Registro")} → {String(event.to_status || "Actualización")}</strong><span>{String(event.notes || "Sin notas")}</span><small>{String(event.changed_by_name || "Sistema")}</small></li>)}</ol></details>;
+}
+
+function ConsolidatedHistory({ module, row }: { module: ModuleKey; row: ResourceRow }) {
+  const source = module === "leads" && Array.isArray(row.activities) ? row.activities : Array.isArray(row.status_history) ? row.status_history : [];
+  const events = (source as ResourceRow[]).map((event) => ({
+    id: event.id,
+    at: event.created_at,
+    actor: event.created_by_name ?? event.changed_by_name ?? "Sistema",
+    title: event.activity_type ?? `${event.from_status || "Registro"} → ${event.to_status || "Actualización"}`,
+    detail: event.detail ?? event.notes ?? "Sin notas",
+  }));
+  if (row.created_at) events.push({ id: "created", at: row.created_at, actor: "Sistema", title: "Creación", detail: `${moduleLabel(module)} creado.` });
+  if (row.updated_at && row.updated_at !== row.created_at) events.push({ id: "updated", at: row.updated_at, actor: "Sistema", title: "Última actualización", detail: "Datos operativos actualizados." });
+  events.sort((left, right) => String(right.at).localeCompare(String(left.at)));
+  return <section aria-labelledby="history-title"><h4 id="history-title">Historial consolidado</h4>{events.length === 0 ? <p>Sin actividad registrada.</p> : <ol className="history-timeline">{events.map((event, index) => <li key={String(event.id ?? index)}><time>{formatValue(event.at)}</time><strong>{String(event.title)}</strong><span>{String(event.detail)}</span><small>{String(event.actor)}</small></li>)}</ol>}</section>;
+}
+
+function shiftDate(date: string, days: number) { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); }
+function agendaRange(anchor: string, mode: "day" | "week") { if (mode === "day") return { start: anchor, end: anchor }; const value = new Date(`${anchor}T12:00:00Z`); const mondayOffset = (value.getUTCDay() + 6) % 7; return { start: shiftDate(anchor, -mondayOffset), end: shiftDate(anchor, 6 - mondayOffset) }; }
+function dateSequence(start: string, end: string) { const dates: string[] = []; for (let current = start; current <= end; current = shiftDate(current, 1)) dates.push(current); return dates; }
+
 function editorDefaults(module: ModuleKey, row: ResourceRow | null): Record<string, string | boolean> {
   const value = (name: string, fallback = "") => String(row?.[name] ?? fallback);
-  if (module === "leads") return { full_name: value("full_name"), email: value("email"), phone: value("phone"), requested_service: value("requested_service"), status: value("status", "new"), notes: value("notes"), consent_data_processing: Boolean(row?.consent_data_processing ?? true) };
+  if (module === "leads") return { full_name: value("full_name"), email: value("email"), phone: value("phone"), requested_service: value("requested_service"), status: value("status", "new"), assigned_to: value("assigned_to"), notes: value("notes"), consent_data_processing: Boolean(row?.consent_data_processing ?? true) };
   if (module === "customers") return { display_name: value("display_name"), customer_type: value("customer_type", "individual"), email: value("email"), phone: value("phone"), status: value("status", "active"), tags: Array.isArray(row?.tags) ? row.tags.join(", ") : "", notes: value("notes") };
   if (module === "properties") return { customer: value("customer"), name: value("name"), address: value("address"), zone: value("zone"), property_type: value("property_type", "home"), bedrooms: value("bedrooms", "0"), bathrooms: value("bathrooms", "0"), area_m2: value("area_m2"), frequency: value("frequency"), operational_notes: value("operational_notes"), access_instructions: value("access_instructions") };
   const line = Array.isArray(row?.lines) ? row.lines[0] as Record<string, unknown> | undefined : undefined;
@@ -946,6 +1033,7 @@ function editorDefaults(module: ModuleKey, row: ResourceRow | null): Record<stri
 }
 
 function editorPayload(module: ModuleKey, form: Record<string, string | boolean>): unknown {
+  if (module === "leads") return { ...form, assigned_to: form.assigned_to || null };
   if (module === "customers") return { ...form, tags: String(form.tags).split(",").map((tag) => tag.trim()).filter(Boolean) };
   if (module === "properties") return { ...form, bedrooms: Number(form.bedrooms), bathrooms: String(form.bathrooms), area_m2: form.area_m2 ? Number(form.area_m2) : null };
   if (module === "quotes") return { customer: form.customer, property: form.property, currency: "CRC", valid_until: form.valid_until, discount: form.discount, terms: form.terms, lines: [{ service: form.service, description: form.description, quantity: form.quantity, estimated_hours: "0", unit_price: form.unit_price, tax_rate: form.tax_rate, expected_cost: "0" }] };

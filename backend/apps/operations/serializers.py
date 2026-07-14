@@ -4,12 +4,14 @@ from .models import Assignment, ChecklistResult, QualityReview, WorkOrder, WorkO
 
 
 class WorkOrderStatusHistorySerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.CharField(source="changed_by.get_full_name", read_only=True)
     class Meta:
         model = WorkOrderStatusHistory
         fields = "__all__"
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
+    worker_name = serializers.CharField(source="worker.full_name", read_only=True)
     class Meta:
         model = Assignment
         fields = "__all__"
@@ -19,6 +21,8 @@ class AssignmentSerializer(serializers.ModelSerializer):
 class WorkOrderSerializer(serializers.ModelSerializer):
     assignments = AssignmentSerializer(many=True, required=False)
     status_history = WorkOrderStatusHistorySerializer(many=True, read_only=True)
+    customer_name = serializers.CharField(source="customer.display_name", read_only=True)
+    property_name = serializers.CharField(source="property.name", read_only=True)
 
     class Meta:
         model = WorkOrder

@@ -1262,6 +1262,47 @@ details p {
   gap: 14px;
 }
 
+.agenda-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.agenda-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(180px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.agenda-day {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.agenda-day > h4 {
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.check-list,
+.history-timeline {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.history-timeline li {
+  display: grid;
+  gap: 3px;
+  padding-left: 12px;
+  border-left: 3px solid var(--teal);
+}
+
 .agenda-card {
   display: grid;
   gap: 9px;
@@ -1303,6 +1344,17 @@ details p {
 
   .editor-form .wide {
     grid-column: auto;
+  }
+
+  .agenda-week {
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+  }
+
+  .agenda-toolbar > *,
+  .agenda-toolbar label,
+  .agenda-toolbar select {
+    width: 100%;
   }
 }
 

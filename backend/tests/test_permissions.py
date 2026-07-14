@@ -63,3 +63,31 @@ class RoleBoundaryTests(TestCase):
         for role in ("superadmin", "managing_partner"):
             with self.subTest(role=role):
                 self.assertEqual(self.client_for(role).get("/api/v1/users/").status_code, 200)
+
+    def test_lead_assignee_must_be_active_and_eligible(self):
+        sales = self.client_for("sales")
+        valid = sales.patch(f"/api/v1/leads/{self.lead.pk}/", {"assigned_to": str(self.users["sales"].pk)}, format="json")
+        invalid_role = sales.patch(f"/api/v1/leads/{self.lead.pk}/", {"assigned_to": str(self.users["staff"].pk)}, format="json")
+        inactive_user = get_user_model().objects.create_user(
+            username="inactive-sales@example.test", email="inactive-sales@example.test",
+            password="Safe-Test-Password-123", role="sales", is_active=False,
+        )
+        inactive = sales.patch(f"/api/v1/leads/{self.lead.pk}/", {"assigned_to": str(inactive_user.pk)}, format="json")
+        self.assertEqual(valid.status_code, 200)
+        self.assertEqual(invalid_role.status_code, 400)
+        self.assertEqual(inactive.status_code, 400)
+
+    def test_operations_can_assign_active_workers_and_conflicts_return_409(self):
+        client = self.client_for("operations")
+        available = WorkerProfile.objects.create(full_name="Disponible", phone="8000-4200", worker_type="employee")
+        assigned = client.post(f"/api/v1/work-orders/{self.work_order.pk}/assign/", {"worker_ids": [str(available.pk)]}, format="json")
+        self.assertEqual(assigned.status_code, 200)
+        self.assertEqual(assigned.json()["assignments"][0]["worker_name"], "Disponible")
+
+        overlapping = WorkOrder.objects.create(
+            customer=self.work_order.customer, property=self.work_order.property,
+            scheduled_start=self.work_order.scheduled_start, scheduled_end=self.work_order.scheduled_end,
+        )
+        conflict = client.post(f"/api/v1/work-orders/{overlapping.pk}/assign/", {"worker_ids": [str(available.pk)]}, format="json")
+        self.assertEqual(conflict.status_code, 409)
+        self.assertEqual(self.client_for("sales").post(f"/api/v1/work-orders/{self.work_order.pk}/assign/", {"worker_ids": []}, format="json").status_code, 403)
