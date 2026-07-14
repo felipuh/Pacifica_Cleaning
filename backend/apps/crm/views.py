@@ -7,6 +7,7 @@ from .serializers import ContactSerializer, CustomerSerializer, LeadSerializer, 
 
 
 class PublicLeadThrottle(AnonRateThrottle):
+    scope = "public_lead"
     rate = "5/hour"
 
 

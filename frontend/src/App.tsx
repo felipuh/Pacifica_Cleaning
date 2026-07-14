@@ -22,7 +22,7 @@ import {
   Users,
   X
 } from "lucide-react";
-import { createLead, getMe, listResource, login, logout, SessionUser } from "./api";
+import { createLead, getMe, listResource, login, logout, requestPasswordReset, SessionUser } from "./api";
 import { benefits, coverageZones, faqs, processSteps, services, whatsappUrl } from "./content";
 
 type View = "public" | "admin" | "policies";
@@ -513,6 +513,7 @@ function LoginPanel({ onLogin }: { onLogin: (user: SessionUser) => void }) {
   const [email, setEmail] = useState("admin@pacifica.local");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [recoveryMessage, setRecoveryMessage] = useState("");
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -529,6 +530,17 @@ function LoginPanel({ onLogin }: { onLogin: (user: SessionUser) => void }) {
     }
   }
 
+  async function recover() {
+    setError("");
+    setRecoveryMessage("");
+    try {
+      const result = await requestPasswordReset(email);
+      setRecoveryMessage(result.detail);
+    } catch {
+      setError("No se pudo procesar la solicitud. Intente nuevamente más tarde.");
+    }
+  }
+
   return (
     <main className="login-screen">
       <form className="login-card" onSubmit={submit}>
@@ -537,6 +549,8 @@ function LoginPanel({ onLogin }: { onLogin: (user: SessionUser) => void }) {
         <label>Correo<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
         <label>Contrasena<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
         <button className="primary">Entrar</button>
+        <button className="ghost" type="button" onClick={recover}>Olvidé mi contraseña</button>
+        {recoveryMessage && <p className="success" role="status">{recoveryMessage}</p>}
         {error && <p className="error">{error}</p>}
       </form>
     </main>

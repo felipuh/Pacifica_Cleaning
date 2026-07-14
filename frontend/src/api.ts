@@ -74,6 +74,15 @@ export async function logout(): Promise<void> {
   });
 }
 
+export async function requestPasswordReset(email: string): Promise<{ detail: string }> {
+  const csrf = await ensureCsrf();
+  return request("/api/auth/password/reset/request/", {
+    method: "POST",
+    headers: { "X-CSRFToken": csrf },
+    body: JSON.stringify({ email })
+  });
+}
+
 export async function listResource<T>(resource: string): Promise<{ results: T[] }> {
   return request(`/api/v1/${resource}/`);
 }

@@ -192,6 +192,7 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@pacificacleaning.cr")
 ADMIN_EMAIL = env("ADMIN_EMAIL", default="admin@pacificacleaning.cr")
+FRONTEND_ORIGIN = env("FRONTEND_ORIGIN", default="http://localhost:5174")
 
 LOGIN_LOCKOUT_ATTEMPTS = 5
 LOGIN_LOCKOUT_MINUTES = 15

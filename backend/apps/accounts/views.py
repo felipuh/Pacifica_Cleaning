@@ -3,8 +3,12 @@ from datetime import timedelta
 import pyotp
 from django.conf import settings
 from django.contrib.auth import login, logout
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import send_mail
 from django.middleware.csrf import get_token
 from django.urls import path
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import status
@@ -15,10 +19,18 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 
 from .models import LoginAttempt
-from .serializers import LoginSerializer, MfaVerifySerializer, UserSerializer
+from .serializers import (
+    LoginSerializer,
+    MfaVerifySerializer,
+    PasswordChangeSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    UserSerializer,
+)
 
 
 class LoginThrottle(AnonRateThrottle):
+    scope = "authentication"
     rate = "10/min"
 
 
@@ -127,10 +139,75 @@ def me(request):
     return Response(UserSerializer(request.user).data)
 
 
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([LoginThrottle])
+def password_reset_request(request):
+    serializer = PasswordResetRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    from .models import User
+
+    user = User.objects.filter(email__iexact=serializer.validated_data["email"], is_active=True).first()
+    if user and user.has_usable_password():
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        frontend_origin = settings.FRONTEND_ORIGIN.rstrip("/")
+        reset_url = f"{frontend_origin}/reset-password?uid={uid}&token={token}"
+        send_mail(
+            "Restablecer contraseña de Pacífica Cleaning",
+            f"Use este enlace para restablecer su contraseña: {reset_url}",
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+        )
+    return Response({"detail": "Si la cuenta existe, recibirá instrucciones para restablecer la contraseña."})
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([LoginThrottle])
+def password_reset_confirm(request):
+    serializer = PasswordResetConfirmSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    from .models import User
+
+    try:
+        user_id = force_str(urlsafe_base64_decode(serializer.validated_data["uid"]))
+        user = User.objects.get(pk=user_id, is_active=True)
+    except (ValueError, TypeError, OverflowError, User.DoesNotExist):
+        return Response({"detail": "El enlace no es válido o expiró."}, status=400)
+    if not default_token_generator.check_token(user, serializer.validated_data["token"]):
+        return Response({"detail": "El enlace no es válido o expiró."}, status=400)
+    password = PasswordResetConfirmSerializer(
+        data=request.data,
+        context={"user": user},
+    )
+    password.is_valid(raise_exception=True)
+    user.set_password(password.validated_data["password"])
+    user.force_password_change = False
+    user.save(update_fields=["password", "force_password_change"])
+    return Response({"detail": "Contraseña actualizada."})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def password_change(request):
+    serializer = PasswordChangeSerializer(data=request.data, context={"user": request.user})
+    serializer.is_valid(raise_exception=True)
+    request.user.set_password(serializer.validated_data["password"])
+    request.user.force_password_change = False
+    request.user.save(update_fields=["password", "force_password_change"])
+    login(request, request.user)
+    return Response({"detail": "Contraseña actualizada."})
+
+
 auth_urls = [
     path("csrf/", csrf, name="csrf"),
     path("login/", login_view, name="login"),
     path("mfa/verify/", mfa_verify, name="mfa-verify"),
     path("logout/", logout_view, name="logout"),
     path("me/", me, name="me"),
+    path("password/reset/request/", password_reset_request, name="password-reset-request"),
+    path("password/reset/confirm/", password_reset_confirm, name="password-reset-confirm"),
+    path("password/change/", password_change, name="password-change"),
 ]

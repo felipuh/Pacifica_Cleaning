@@ -1,4 +1,4 @@
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, password_validation
 from rest_framework import serializers
 
 from .models import User
@@ -31,3 +31,29 @@ class LoginSerializer(serializers.Serializer):
 
 class MfaVerifySerializer(serializers.Serializer):
     code = serializers.CharField(min_length=6, max_length=8)
+
+
+class PasswordSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_password(self, value):
+        password_validation.validate_password(value, self.context.get("user"))
+        return value
+
+
+class PasswordChangeSerializer(PasswordSerializer):
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_current_password(self, value):
+        if not self.context["user"].check_password(value):
+            raise serializers.ValidationError("La contraseña actual no es válida.")
+        return value
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(PasswordSerializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
