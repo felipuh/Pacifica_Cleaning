@@ -1,6 +1,12 @@
 from rest_framework import serializers
 
-from .models import Assignment, ChecklistResult, QualityReview, WorkOrder
+from .models import Assignment, ChecklistResult, QualityReview, WorkOrder, WorkOrderStatusHistory
+
+
+class WorkOrderStatusHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkOrderStatusHistory
+        fields = "__all__"
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -12,6 +18,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
 class WorkOrderSerializer(serializers.ModelSerializer):
     assignments = AssignmentSerializer(many=True, required=False)
+    status_history = WorkOrderStatusHistorySerializer(many=True, read_only=True)
 
     class Meta:
         model = WorkOrder
@@ -26,7 +33,9 @@ class WorkOrderSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         assignments = validated_data.pop("assignments", [])
-        work_order = WorkOrder.objects.create(**validated_data)
+        work_order = WorkOrder(**validated_data)
+        work_order.full_clean()
+        work_order.save()
         for assignment in assignments:
             obj = Assignment(work_order=work_order, **assignment)
             obj.full_clean()

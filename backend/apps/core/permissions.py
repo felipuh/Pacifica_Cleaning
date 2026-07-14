@@ -8,6 +8,7 @@ FINANCE_ROLES = ADMIN_ROLES | {"finance"}
 QUALITY_ROLES = ADMIN_ROLES | {"quality", "operations"}
 READ_ONLY_ROLES = ADMIN_ROLES | {"operations", "sales", "finance", "quality", "auditor"}
 SENSITIVE_ACCESS_ROLES = ADMIN_ROLES | {"operations", "quality"}
+STAFF_ROLES = {"staff"}
 
 
 class IsRole(BasePermission):

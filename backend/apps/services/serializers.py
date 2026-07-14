@@ -2,7 +2,13 @@ from rest_framework import serializers
 
 from apps.operations.models import WorkOrder
 
-from .models import PriceVersion, Quote, QuoteLine, Service
+from .models import PriceVersion, Quote, QuoteLine, QuoteStatusHistory, Service
+
+
+class QuoteStatusHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuoteStatusHistory
+        fields = "__all__"
 
 
 class ServiceSerializer(serializers.ModelSerializer):
@@ -37,11 +43,12 @@ class QuoteLineSerializer(serializers.ModelSerializer):
 
 class QuoteSerializer(serializers.ModelSerializer):
     lines = QuoteLineSerializer(many=True)
+    status_history = QuoteStatusHistorySerializer(many=True, read_only=True)
 
     class Meta:
         model = Quote
         fields = "__all__"
-        read_only_fields = ("subtotal", "tax", "total", "margin_estimate", "accepted_at")
+        read_only_fields = ("subtotal", "tax", "total", "margin_estimate", "accepted_at", "status")
 
     def validate(self, attrs):
         discount = attrs.get("discount", getattr(self.instance, "discount", 0))
@@ -54,6 +61,14 @@ class QuoteSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("El descuento no puede superar el subtotal.")
         elif self.instance and discount > self.instance.subtotal:
             raise serializers.ValidationError("El descuento no puede superar el subtotal.")
+        customer = attrs.get("customer", getattr(self.instance, "customer", None))
+        property_obj = attrs.get("property", getattr(self.instance, "property", None))
+        if customer and property_obj and property_obj.customer_id != customer.pk:
+            raise serializers.ValidationError({"property": "La propiedad no pertenece al cliente seleccionado."})
+        source_lead = attrs.get("source_lead", getattr(self.instance, "source_lead", None))
+        if source_lead:
+            if not hasattr(source_lead, "converted_customer") or source_lead.converted_customer.pk != customer.pk:
+                raise serializers.ValidationError({"source_lead": "El lead no corresponde al cliente seleccionado."})
         return attrs
 
     def create(self, validated_data):
@@ -107,4 +122,6 @@ class ConvertQuoteToWorkOrderSerializer(serializers.Serializer):
             route_zone=self.validated_data.get("route_zone", quote.property.zone),
             travel_minutes=self.validated_data.get("travel_minutes", 0),
             checklist_notes=self.validated_data.get("checklist_notes", ""),
+            instructions=quote.property.operational_notes,
+            price=quote.total,
         )

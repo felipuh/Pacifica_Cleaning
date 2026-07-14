@@ -63,6 +63,8 @@ class Quote(TimeStampedUUIDModel):
     margin_estimate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     notes = models.TextField(blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
+    source_lead = models.ForeignKey("crm.Lead", null=True, blank=True, related_name="quotes", on_delete=models.SET_NULL)
+    terms = models.TextField(blank=True)
 
     def recalculate(self) -> None:
         subtotal = sum((line.line_total for line in self.lines.all()), Decimal("0.00"))
@@ -73,8 +75,12 @@ class Quote(TimeStampedUUIDModel):
         self.margin_estimate = sum((line.margin_estimate for line in self.lines.all()), Decimal("0.00"))
 
     def accept(self) -> None:
-        if self.status not in {self.Status.SENT, self.Status.DRAFT}:
-            raise ValueError("Solo cotizaciones enviadas o borrador pueden aceptarse.")
+        if self.status != self.Status.SENT:
+            raise ValueError("Solo una cotización enviada puede aceptarse.")
+        if self.valid_until < timezone.localdate():
+            self.status = self.Status.EXPIRED
+            self.save(update_fields=["status", "updated_at"])
+            raise ValueError("La cotización está vencida.")
         self.status = self.Status.ACCEPTED
         self.accepted_at = timezone.now()
         self.save(update_fields=["status", "accepted_at", "updated_at"])
@@ -97,3 +103,14 @@ class QuoteLine(TimeStampedUUIDModel):
         self.line_total = basis * self.unit_price
         self.margin_estimate = self.line_total - self.expected_cost
         super().save(*args, **kwargs)
+
+
+class QuoteStatusHistory(TimeStampedUUIDModel):
+    quote = models.ForeignKey(Quote, related_name="status_history", on_delete=models.CASCADE)
+    from_status = models.CharField(max_length=20, blank=True)
+    to_status = models.CharField(max_length=20, choices=Quote.Status.choices)
+    notes = models.TextField(blank=True)
+    changed_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        ordering = ["-created_at"]

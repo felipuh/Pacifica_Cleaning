@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from apps.core.models import TimeStampedUUIDModel
 
@@ -22,10 +23,41 @@ class WorkOrder(TimeStampedUUIDModel):
     travel_minutes = models.PositiveIntegerField(default=0)
     checklist_notes = models.TextField(blank=True)
     client_confirmation = models.CharField(max_length=160, blank=True)
+    instructions = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    payment_status = models.CharField(max_length=20, choices=[("pending", "Pendiente"), ("partial", "Parcial"), ("paid", "Pagado")], default="pending")
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    cancellation_reason = models.TextField(blank=True)
 
     def clean(self):
         if self.scheduled_end <= self.scheduled_start:
             raise ValidationError("La hora final debe ser posterior a la inicial.")
+
+    def transition(self, target):
+        allowed = {
+            self.Status.PLANNED: {self.Status.CONFIRMED, self.Status.CANCELLED},
+            self.Status.CONFIRMED: {self.Status.IN_PROGRESS, self.Status.CANCELLED},
+            self.Status.IN_PROGRESS: {self.Status.COMPLETED, self.Status.CANCELLED},
+        }
+        if target not in allowed.get(self.status, set()):
+            raise ValidationError(f"Transición de {self.status} a {target} no permitida.")
+        self.status = target
+        if target == self.Status.IN_PROGRESS:
+            self.started_at = timezone.now()
+        if target == self.Status.COMPLETED:
+            self.completed_at = timezone.now()
+
+
+class WorkOrderStatusHistory(TimeStampedUUIDModel):
+    work_order = models.ForeignKey(WorkOrder, related_name="status_history", on_delete=models.CASCADE)
+    from_status = models.CharField(max_length=24, blank=True)
+    to_status = models.CharField(max_length=24, choices=WorkOrder.Status.choices)
+    notes = models.TextField(blank=True)
+    changed_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        ordering = ["-created_at"]
 
 
 class Assignment(TimeStampedUUIDModel):

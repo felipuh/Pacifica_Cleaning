@@ -5,8 +5,8 @@ from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 
-from apps.accounts.views import auth_urls
-from apps.core.views import private_file
+from apps.accounts.views import UserViewSet, auth_urls
+from apps.core.views import dashboard, private_file
 from apps.crm.views import ContactViewSet, CustomerViewSet, LeadViewSet, PropertyViewSet
 from apps.finance.views import ExpenseViewSet, PaymentViewSet
 from apps.inventory.views import InventoryItemViewSet, StockMovementViewSet
@@ -33,6 +33,7 @@ router.register("stock-movements", StockMovementViewSet)
 router.register("campaigns", CampaignViewSet)
 router.register("coupons", CouponViewSet)
 router.register("notification-templates", NotificationTemplateViewSet)
+router.register("users", UserViewSet)
 
 urlpatterns = [
     path("", include("apps.public_site.urls")),
@@ -40,6 +41,7 @@ urlpatterns = [
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/auth/", include((auth_urls, "auth"))),
+    path("api/v1/dashboard/", dashboard, name="dashboard"),
     path("api/v1/", include(router.urls)),
     path("private-files/<uuid:pk>/", private_file, name="private-file"),
 ]

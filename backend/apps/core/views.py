@@ -3,7 +3,17 @@ import hmac
 
 from django.conf import settings
 from django.http import FileResponse, HttpResponseForbidden
+from django.db.models import Count, Sum
 from django.utils import timezone
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+
+from apps.crm.models import Customer, Lead
+from apps.finance.models import Payment
+from apps.operations.models import WorkOrder
+from apps.services.models import Quote
+
+from .permissions import role_permission, READ_ONLY_ROLES
 
 from .models import PrivateAttachment
 
@@ -18,3 +28,43 @@ def private_file(request, pk):
         return HttpResponseForbidden("Invalid private file URL.")
     attachment = PrivateAttachment.objects.get(pk=pk)
     return FileResponse(attachment.file.open("rb"), content_type=attachment.mime_type)
+
+
+@api_view(["GET"])
+@permission_classes([role_permission(*READ_ONLY_ROLES)])
+def dashboard(request):
+    now = timezone.now()
+    leads = Lead.objects.filter(is_archived=False)
+    quotes = Quote.objects.all()
+    work_orders = WorkOrder.objects.all()
+    total_leads = leads.count()
+    won_leads = leads.filter(status=Lead.Status.WON).count()
+    recurrent_customers = Customer.objects.annotate(service_count=Count("work_orders")).filter(service_count__gte=2, is_archived=False).count()
+    estimated = quotes.filter(status__in=[Quote.Status.SENT, Quote.Status.ACCEPTED]).aggregate(value=Sum("total"))["value"] or 0
+    confirmed = Payment.objects.aggregate(value=Sum("amount"))["value"] or 0
+    recent = [
+        {"type": "lead", "id": str(item.pk), "label": item.full_name, "status": item.status, "at": item.updated_at}
+        for item in leads.order_by("-updated_at")[:5]
+    ]
+    recent += [
+        {"type": "service", "id": str(item.pk), "label": item.property.name, "status": item.status, "at": item.updated_at}
+        for item in work_orders.select_related("property").order_by("-updated_at")[:5]
+    ]
+    recent.sort(key=lambda item: item["at"], reverse=True)
+    return Response(
+        {
+            "leads_new": leads.filter(status=Lead.Status.NEW).count(),
+            "leads_pending": leads.filter(status__in=[Lead.Status.NEW, Lead.Status.CONTACTED, Lead.Status.QUALIFIED]).count(),
+            "quotes_pending": quotes.filter(status=Quote.Status.DRAFT).count(),
+            "quotes_sent": quotes.filter(status=Quote.Status.SENT).count(),
+            "quotes_accepted": quotes.filter(status=Quote.Status.ACCEPTED).count(),
+            "services_upcoming": work_orders.filter(scheduled_start__gte=now, status__in=[WorkOrder.Status.PLANNED, WorkOrder.Status.CONFIRMED]).count(),
+            "services_completed": work_orders.filter(status=WorkOrder.Status.COMPLETED).count(),
+            "recurrent_customers": recurrent_customers,
+            "estimated_revenue": estimated,
+            "confirmed_revenue": confirmed,
+            "conversion_rate": round((won_leads / total_leads * 100), 2) if total_leads else 0,
+            "recent_activity": recent[:10],
+            "generated_at": now,
+        }
+    )

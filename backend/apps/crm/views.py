@@ -64,6 +64,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         "archive": SALES_ROLES,
         "convert": SALES_ROLES,
         "add_activity": SALES_ROLES,
+        "create_quote": SALES_ROLES,
     }
 
     def get_queryset(self):
@@ -121,6 +122,21 @@ class LeadViewSet(viewsets.ModelViewSet):
             lead.save(update_fields=["status", "updated_at"])
             LeadActivity.objects.create(lead=lead, activity_type="conversion", detail=f"Convertido en cliente {customer.pk}.", created_by=request.user)
         return response.Response(CustomerSerializer(customer).data, status=status.HTTP_201_CREATED)
+
+    @decorators.action(detail=True, methods=["post"], url_path="create-quote")
+    def create_quote(self, request, pk=None):
+        lead = self.get_object()
+        if not hasattr(lead, "converted_customer"):
+            raise serializers.ValidationError("Convierta el lead en cliente antes de cotizar.")
+        from apps.services.serializers import QuoteSerializer
+
+        data = request.data.copy()
+        data["customer"] = str(lead.converted_customer.pk)
+        data["source_lead"] = str(lead.pk)
+        serializer = QuoteSerializer(data=data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        quote = serializer.save()
+        return response.Response(serializer.to_representation(quote), status=status.HTTP_201_CREATED)
 
     def get_serializer_class(self):
         if self.action == "create" and not self.request.user.is_authenticated:

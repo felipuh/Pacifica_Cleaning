@@ -7,24 +7,26 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.middleware.csrf import get_token
 from django.urls import path
+from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
-from rest_framework import status
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework import serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 
-from .models import LoginAttempt
+from apps.core.permissions import ADMIN_ROLES, RoleActionPermission
+
+from .models import LoginAttempt, User
 from .serializers import (
     LoginSerializer,
     MfaVerifySerializer,
     PasswordChangeSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    UserManagementSerializer,
     UserSerializer,
 )
 
@@ -32,6 +34,13 @@ from .serializers import (
 class LoginThrottle(AnonRateThrottle):
     scope = "authentication"
     rate = "10/min"
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all().order_by("first_name", "last_name", "email")
+    serializer_class = UserManagementSerializer
+    permission_classes = [RoleActionPermission]
+    action_roles = {action: ADMIN_ROLES for action in ("list", "retrieve", "create", "update", "partial_update", "destroy")}
 
 
 def _client_ip(request) -> str | None:

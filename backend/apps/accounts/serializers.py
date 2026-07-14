@@ -57,3 +57,32 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 class PasswordResetConfirmSerializer(PasswordSerializer):
     uid = serializers.CharField()
     token = serializers.CharField()
+
+
+class UserManagementSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, trim_whitespace=False)
+
+    class Meta:
+        model = User
+        fields = ("id", "email", "username", "first_name", "last_name", "phone", "role", "is_active", "password", "last_seen_at")
+        read_only_fields = ("id", "last_seen_at")
+
+    def validate_password(self, value):
+        password_validation.validate_password(value, self.instance)
+        return value
+
+    def create(self, validated_data):
+        password = validated_data.pop("password", None)
+        if not password:
+            raise serializers.ValidationError({"password": "La contraseña temporal es obligatoria."})
+        return User.objects.create_user(password=password, **validated_data)
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        for name, value in validated_data.items():
+            setattr(instance, name, value)
+        if password:
+            instance.set_password(password)
+            instance.force_password_change = True
+        instance.save()
+        return instance
