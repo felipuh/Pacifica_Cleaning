@@ -1,4 +1,5 @@
 .env
+.env.staging.local
 .venv/
 __pycache__/
 *.py[cod]
@@ -17,3 +18,4 @@ backups/
 secrets/
 frontend/playwright-report/
 frontend/test-results/
+*.tsbuildinfo

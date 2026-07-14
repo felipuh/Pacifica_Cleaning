@@ -1,0 +1,159 @@
+name: Staging infrastructure validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [chore/staging-infrastructure-validation]
+
+concurrency:
+  group: pacifica-cleaning-staging-infrastructure
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      COMPOSE_PROJECT_NAME: pacifica-cleaning-staging
+      COMPOSE_ENV_FILE: .env.staging.local
+      POSTGRES_DB: pacifica_cleaning_staging_source
+      POSTGRES_USER: pacifica_staging
+      POSTGRES_PASSWORD: synthetic-staging-db-password
+      STAGING_HTTP_PORT: "8088"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24.17.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Create ephemeral staging environment
+        shell: bash
+        run: |
+          secret="$(openssl rand -hex 48)"
+          passphrase="$(openssl rand -hex 32)"
+          printf '%s\n' \
+            'ENVIRONMENT=staging' \
+            'DJANGO_ENV=production' \
+            'DJANGO_DEBUG=false' \
+            "DJANGO_SECRET_KEY=${secret}" \
+            'DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,nginx,api' \
+            'DJANGO_CSRF_TRUSTED_ORIGINS=http://127.0.0.1:8088' \
+            'CORS_ALLOWED_ORIGINS=http://127.0.0.1:8088' \
+            'FRONTEND_ORIGIN=http://127.0.0.1:8088' \
+            'DJANGO_SECURE_SSL_REDIRECT=false' \
+            'DJANGO_SESSION_COOKIE_SECURE=false' \
+            'DJANGO_CSRF_COOKIE_SECURE=false' \
+            'EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend' \
+            'DEFAULT_FROM_EMAIL=staging@example.invalid' \
+            'ADMIN_EMAIL=staging-admin@example.invalid' \
+            'WHATSAPP_CLOUD_API_TOKEN=' \
+            'WHATSAPP_PHONE_NUMBER_ID=' \
+            > .env.staging.local
+          echo "BACKUP_PASSPHRASE=${passphrase}" >> "$GITHUB_ENV"
+
+      - name: Validate Compose configuration
+        run: docker compose -p pacifica-cleaning-staging config --quiet
+
+      - name: Build isolated stack
+        run: docker compose -p pacifica-cleaning-staging build --pull
+
+      - name: Start isolated stack
+        run: |
+          docker compose -p pacifica-cleaning-staging up -d
+          timeout 180 bash -c 'until [ "$(docker inspect --format="{{.State.Health.Status}}" pacifica-cleaning-staging-nginx-1 2>/dev/null)" = healthy ]; do sleep 3; done'
+          docker compose -p pacifica-cleaning-staging ps
+
+      - name: Validate routes, static assets, and PostgreSQL version
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1:8088/ >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:8088/app >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:8088/legal >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:8088/api/v1/health/ >/dev/null
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8088/admin/)" = 302
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8088/private-files/not-present)" != 200
+          asset="$(curl --silent http://127.0.0.1:8088/ | grep -o '/assets/[^" ]*\.js' | head -1)"
+          test -n "$asset"
+          curl --fail --silent --show-error "http://127.0.0.1:8088${asset}" >/dev/null
+          docker compose -p pacifica-cleaning-staging exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'SELECT version();'
+
+      - name: Validate clean migrations and backend on PostgreSQL 16
+        run: |
+          docker compose -p pacifica-cleaning-staging exec -T api python manage.py migrate --plan
+          docker compose -p pacifica-cleaning-staging exec -T api python manage.py migrate --noinput
+          docker compose -p pacifica-cleaning-staging exec -T api python manage.py makemigrations --check --dry-run
+          docker compose -p pacifica-cleaning-staging exec -T api python manage.py check
+          docker compose -p pacifica-cleaning-staging exec -T api python manage.py test tests
+
+      - name: Run frontend checks
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test -- --run
+          npm run lint
+          npm run build
+
+      - name: Bootstrap synthetic operator and run E2E on PostgreSQL
+        run: |
+          docker compose -p pacifica-cleaning-staging exec -T api python manage.py bootstrap_system --email admin@pacifica.local --password E2E-Only-Password-12345
+          PLAYWRIGHT_EXTERNAL_SERVERS=true PLAYWRIGHT_BASE_URL=http://127.0.0.1:8088 npm run test:e2e --prefix frontend
+          docker compose -p pacifica-cleaning-staging exec -T api python manage.py seed_staging_validation
+
+      - name: Verify persistence across restart and down/up
+        run: |
+          before="$(docker compose -p pacifica-cleaning-staging exec -T api python manage.py staging_fingerprint | tail -1)"
+          docker compose -p pacifica-cleaning-staging restart
+          timeout 180 bash -c 'until [ "$(docker inspect --format="{{.State.Health.Status}}" pacifica-cleaning-staging-nginx-1 2>/dev/null)" = healthy ]; do sleep 3; done'
+          after_restart="$(docker compose -p pacifica-cleaning-staging exec -T api python manage.py staging_fingerprint | tail -1)"
+          test "$before" = "$after_restart"
+          docker compose -p pacifica-cleaning-staging down
+          docker compose -p pacifica-cleaning-staging up -d
+          timeout 180 bash -c 'until [ "$(docker inspect --format="{{.State.Health.Status}}" pacifica-cleaning-staging-nginx-1 2>/dev/null)" = healthy ]; do sleep 3; done'
+          after_recreate="$(docker compose -p pacifica-cleaning-staging exec -T api python manage.py staging_fingerprint | tail -1)"
+          test "$before" = "$after_recreate"
+          printf '%s' "$before" > /tmp/source-fingerprint.json
+
+      - name: Create encrypted backup and restore separate database
+        run: |
+          start="$SECONDS"
+          BACKUP_DIR=/tmp/pacifica-backups BACKUP_DATABASE="$POSTGRES_DB" infra/scripts/backup.sh
+          backup_file="$(find /tmp/pacifica-backups -type f -name '*.enc' -print -quit)"
+          test -s "$backup_file"
+          stat -c 'backup_size=%s backup_mode=%a' "$backup_file"
+          sha256sum "$backup_file" | sed 's# /tmp/.*# <masked-backup>#'
+          docker compose -p pacifica-cleaning-staging exec -T db createdb -U "$POSTGRES_USER" pacifica_cleaning_staging_restore
+          RESTORE_DATABASE=pacifica_cleaning_staging_restore infra/scripts/restore.sh "$backup_file"
+          echo "backup_restore_duration_seconds=$((SECONDS-start))"
+
+      - name: Validate restored integrity and smoke
+        run: |
+          restore_url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/pacifica_cleaning_staging_restore"
+          restored="$(docker compose -p pacifica-cleaning-staging exec -T -e DATABASE_URL="$restore_url" api python manage.py staging_fingerprint | tail -1)"
+          test "$(cat /tmp/source-fingerprint.json)" = "$restored"
+          docker compose -p pacifica-cleaning-staging exec -T -e DATABASE_URL="$restore_url" api python manage.py check
+          docker compose -p pacifica-cleaning-staging exec -T -e DATABASE_URL="$restore_url" api python manage.py test tests.test_public_site tests.test_auth
+          docker compose -p pacifica-cleaning-staging exec -T -e DATABASE_URL="$restore_url" api python manage.py shell -c "from apps.crm.models import Lead; Lead.objects.create(full_name='Synthetic Restored Smoke Lead',email='restored-smoke@example.invalid',phone='0000-SMOKE',consent_data_processing=True); assert Lead.objects.filter(phone='0000-SMOKE').exists()"
+
+      - name: Security and dependency audits
+        run: |
+          docker compose -p pacifica-cleaning-staging exec -T -e DJANGO_SECURE_SSL_REDIRECT=true -e DJANGO_SESSION_COOKIE_SECURE=true -e DJANGO_CSRF_COOKIE_SECURE=true api python manage.py check --deploy
+          python -m pip install --disable-pip-version-check pip-audit==2.10.0
+          pip-audit -r backend/requirements.txt
+          npm audit --prefix frontend
+
+      - name: Show isolated logs on failure
+        if: failure()
+        run: docker compose -p pacifica-cleaning-staging logs --no-color
+
+      - name: Remove only validation resources
+        if: always()
+        run: |
+          rm -f .env.staging.local /tmp/pacifica_restore.sql.gz
+          rm -rf /tmp/pacifica-backups
+          docker compose -p pacifica-cleaning-staging down -v --remove-orphans
