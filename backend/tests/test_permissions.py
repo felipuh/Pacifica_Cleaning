@@ -20,7 +20,7 @@ class RoleBoundaryTests(TestCase):
                 password="Safe-Test-Password-123",
                 role=role,
             )
-            for role in ("superadmin", "managing_partner", "operations", "sales", "staff", "auditor")
+            for role in ("superadmin", "managing_partner", "operations", "sales", "quality", "staff", "auditor")
         }
         self.lead = Lead.objects.create(full_name="Lead permisos", phone="8000-4000", consent_data_processing=True)
         customer = Customer.objects.create(display_name="Cliente permisos")
@@ -91,3 +91,31 @@ class RoleBoundaryTests(TestCase):
         conflict = client.post(f"/api/v1/work-orders/{overlapping.pk}/assign/", {"worker_ids": [str(available.pk)]}, format="json")
         self.assertEqual(conflict.status_code, 409)
         self.assertEqual(self.client_for("sales").post(f"/api/v1/work-orders/{self.work_order.pk}/assign/", {"worker_ids": []}, format="json").status_code, 403)
+
+    def test_quality_resources_enforce_roles_and_score_validation(self):
+        quality = self.client_for("quality")
+        created = quality.post(
+            "/api/v1/quality-reviews/",
+            {"work_order": str(self.work_order.pk), "score": 5, "nps": 80, "rework_required": False},
+            format="json",
+        )
+        invalid = quality.post(
+            "/api/v1/quality-reviews/",
+            {"work_order": str(self.work_order.pk), "score": 7},
+            format="json",
+        )
+        incident = quality.post(
+            "/api/v1/incidents/",
+            {"work_order": str(self.work_order.pk), "severity": "medium", "description": "Daño menor"},
+            format="json",
+        )
+        denied = self.client_for("sales").post(
+            "/api/v1/incidents/",
+            {"work_order": str(self.work_order.pk), "severity": "low", "description": "Sin permiso"},
+            format="json",
+        )
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(incident.status_code, 201)
+        self.assertEqual(denied.status_code, 403)

@@ -7,7 +7,9 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.crm.models import Customer, Property
-from apps.operations.models import Assignment, WorkOrder
+from apps.finance.models import Expense, Payment
+from apps.inventory.models import InventoryItem
+from apps.operations.models import Assignment, Incident, QualityReview, WorkOrder
 from apps.people.models import WorkerProfile
 from apps.services.models import Quote, Service
 
@@ -145,12 +147,17 @@ class QuoteAndServiceApiTests(TestCase):
             valid_until=timezone.localdate() + timedelta(days=5),
             total=Decimal("25000.00"),
         )
-        WorkOrder.objects.create(
+        work_order = WorkOrder.objects.create(
             customer=self.customer,
             property=self.property,
             scheduled_start=timezone.now() + timedelta(days=1),
             scheduled_end=timezone.now() + timedelta(days=1, hours=2),
         )
+        Payment.objects.create(customer=self.customer, amount=Decimal("40000.00"), currency="CRC", method="cash", paid_at=timezone.localdate())
+        Expense.objects.create(category="supplies", description="Productos", amount=Decimal("12500.00"), currency="CRC", incurred_at=timezone.localdate())
+        QualityReview.objects.create(work_order=work_order, score=4, rework_required=True)
+        Incident.objects.create(work_order=work_order, severity="high", description="Daño reportado")
+        InventoryItem.objects.create(name="Desinfectante", category="Insumo", stock_on_hand=1, minimum_stock=2)
 
         response = self.client_for(self.auditor).get("/api/v1/dashboard/")
 
@@ -158,3 +165,8 @@ class QuoteAndServiceApiTests(TestCase):
         self.assertEqual(response.json()["quotes_sent"], 1)
         self.assertEqual(response.json()["services_upcoming"], 1)
         self.assertEqual(Decimal(response.json()["estimated_revenue"]), Decimal("25000.00"))
+        self.assertEqual(response.json()["finance_by_currency"][0]["margin"], 27500.0)
+        self.assertEqual(response.json()["quality_average"], 4.0)
+        self.assertEqual(response.json()["rework_rate"], 100.0)
+        self.assertEqual(response.json()["high_incidents"], 1)
+        self.assertEqual(response.json()["inventory_below_minimum"], 1)

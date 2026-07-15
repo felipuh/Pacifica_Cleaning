@@ -69,6 +69,15 @@ export async function login(email: string, password: string): Promise<SessionUse
   });
 }
 
+export async function verifyMfa(code: string): Promise<SessionUser> {
+  const csrf = await ensureCsrf();
+  return request("/api/auth/mfa/verify/", {
+    method: "POST",
+    headers: { "X-CSRFToken": csrf },
+    body: JSON.stringify({ code })
+  });
+}
+
 export async function getMe(): Promise<SessionUser> {
   return request("/api/auth/me/");
 }
@@ -142,6 +151,12 @@ export type DashboardMetrics = {
   estimated_revenue: string;
   confirmed_revenue: string;
   conversion_rate: number;
+  finance_by_currency: Array<{ currency: string; income: string; expenses: string; margin: string }>;
+  quality_average: number | null;
+  rework_rate: number;
+  open_incidents: number;
+  high_incidents: number;
+  inventory_below_minimum: number;
   recent_activity: Array<{ type: string; id: string; label: string; status: string; at: string }>;
 };
 

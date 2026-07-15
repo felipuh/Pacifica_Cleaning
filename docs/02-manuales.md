@@ -45,17 +45,23 @@ infra/scripts/restore.sh backups/pacifica_YYYYmmdd_HHMMSS.sql.gz.enc
 
 ## Usuario operativo
 
+- Abrir **Resumen** para revisar KPIs, margen por moneda, calidad, incidencias y alertas de inventario. Los demás módulos reemplazan esta vista; no se cargan debajo del dashboard.
 - Crear lead o cliente.
+- Gestionar contactos y propiedades del cliente.
 - Registrar propiedad con instrucciones de acceso.
 - Generar cotizacion desde catalogo.
 - Convertir cotizacion aceptada a orden de servicio.
 - Asignar personal verificando conflictos.
 - Completar checklist y evidencias autorizadas.
 - Registrar pago/gasto y revisar margen.
+- Registrar evaluaciones de calidad, retrabajos e incidencias.
+- Gestionar inventario mediante movimientos de entrada, salida o pérdida.
+- Administrar campañas, cupones y plantillas de notificación según el rol.
 
 ## Pruebas manuales
 
 - Iniciar sesion, cerrar sesion y recuperar contrasena.
+- Completar el código TOTP cuando la cuenta tenga MFA activado.
 - Enviar solicitud publica y confirmar que aparece como lead.
 - Crear cotizacion con descuento permitido.
 - Intentar solapar asignaciones y confirmar bloqueo.

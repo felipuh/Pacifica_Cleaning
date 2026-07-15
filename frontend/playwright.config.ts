@@ -19,7 +19,7 @@ export default defineConfig({
   ],
   webServer: externalServers ? undefined : [
     {
-      command: "cd ../backend && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py migrate --noinput && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py flush --noinput && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py bootstrap_system --email admin@pacifica.local --password E2E-Only-Password-12345 && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py seed_initial_data && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py runserver 127.0.0.1:8001",
+      command: "cd ../backend && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py migrate --noinput && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py flush --noinput && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py bootstrap_system --email admin@pacifica.local --password E2E-Only-Password-12345 && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py seed_initial_data && DATABASE_URL=sqlite:////tmp/pacifica-cleaning-e2e.sqlite3 .venv/bin/python manage.py runserver 127.0.0.1:8001 --noreload",
       url: "http://127.0.0.1:8001/api/v1/health/",
       timeout: 120_000,
       reuseExistingServer: false

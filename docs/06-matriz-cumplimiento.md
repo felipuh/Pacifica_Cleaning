@@ -7,6 +7,25 @@ Estado usado:
 - No cumple: no hay evidencia suficiente.
 - No verificado: no fue posible validarlo en esta revision.
 
+## Revisión 2026-07-15
+
+Esta revisión sustituye el estado técnico de la revisión 2026-06-22, conservada debajo como línea base histórica.
+
+| Área | Estado | Evidencia actual |
+| --- | --- | --- |
+| React público y portal principal | Cumple | SPA servida por Nginx/Compose; rutas públicas, legales y `/app/*` con fallback. |
+| Portal operativo | Cumple MVP | CRUD por rol para CRM, propiedades, catálogo/tarifas, cotizaciones, agenda, personal, finanzas, inventario, marketing, plantillas, calidad e incidencias. |
+| Dashboard y reportes | Cumple MVP | Vista exclusiva de resumen; KPIs comerciales/operativos, finanzas por moneda, margen, calidad, retrabajo, incidencias e inventario. |
+| Autenticación | Cumple | Sesión/CSRF, recuperación de contraseña y verificación MFA TOTP dentro de React. |
+| Roles y permisos | Cumple | Restricciones API y UI por módulo, con pruebas de permisos. |
+| Sitio público | Cumple | Landing, formularios, políticas, SEO local/OG/JSON-LD, accesibilidad, responsive y ES/EN. |
+| PWA | Cumple | Manifest, icono y service worker de producción con caché del shell. |
+| Docker/Nginx/CI | Cumple en repositorio | React obligatorio en Compose, Nginx SPA/API, health checks y gates backend/frontend/E2E. |
+| Pruebas | Cumple | 35 backend, 21 frontend y 7 escenarios E2E ejecutables; concurrencia, permisos, accesibilidad y responsive incluidos. |
+| Producción externa | Pendiente externo | Dominio, DNS, certificados, secretos, proveedor de correo/WhatsApp y monitoreo requieren infraestructura y credenciales reales. |
+
+El 100% de código y preparación en el repositorio no equivale a afirmar que un VPS externo ya está operando. La puesta en producción debe cerrar el último renglón con evidencia del entorno real.
+
 ## Revision 2026-06-22
 
 | Area | Estado | Evidencia | Brecha / accion requerida |

@@ -14,7 +14,7 @@ test("visitor lead becomes a completed scheduled service", async ({ page }, test
   await page.goto("/");
   await page.getByLabel("Nombre").fill(leadName);
   await page.getByLabel("Correo").fill(`lead-${suffix}@example.test`);
-  await page.getByLabel("Telefono").fill(customerPhone);
+  await page.getByLabel(/Tel[eé]fono/).fill(customerPhone);
   await page.getByLabel(/Acepto el tratamiento de datos/).check();
   await page.getByRole("button", { name: "Enviar solicitud" }).click();
   await expect(page.getByText("Solicitud recibida.")).toBeVisible();
@@ -24,6 +24,7 @@ test("visitor lead becomes a completed scheduled service", async ({ page }, test
   await page.getByLabel("Contrasena").fill("E2E-Only-Password-12345");
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByRole("heading", { name: "Panel administrativo" })).toBeVisible();
+  await page.getByRole("button", { name: /Leads/ }).click();
   const leadRow = page.locator(".admin-table-row").filter({ hasText: leadName });
   await expect(leadRow).toBeVisible();
   await leadRow.getByRole("button", { name: "Editar" }).click();
@@ -64,6 +65,7 @@ test("visitor lead becomes a completed scheduled service", async ({ page }, test
   await page.getByRole("button", { name: "Confirmar" }).click();
   await page.getByRole("button", { name: "Iniciar" }).click();
   await page.getByRole("button", { name: "Finalizar" }).click();
+  await page.getByRole("button", { name: /Resumen/ }).click();
   await expect(page.locator(".metric").filter({ hasText: "Servicios completados" }).getByText("1")).toBeVisible();
 });
 
@@ -78,7 +80,7 @@ test("invalid login, denied API, network error and 404 are handled", async ({ pa
   await page.route("**/api/v1/leads/", (route) => route.abort("failed"));
   await page.goto("/");
   await page.getByLabel("Nombre").fill("Error de red E2E");
-  await page.getByLabel("Telefono").fill("80009999");
+  await page.getByLabel(/Tel[eé]fono/).fill("80009999");
   await page.getByLabel(/Acepto el tratamiento de datos/).check();
   await page.getByRole("button", { name: "Enviar solicitud" }).click();
   await expect(page.getByText(/No se pudo enviar/)).toBeVisible();
@@ -89,13 +91,13 @@ test("invalid login, denied API, network error and 404 are handled", async ({ pa
 
 test("expired session returns the operator to login", async ({ page, context }, testInfo) => {
   test.skip(testInfo.project.name.includes("mobile"), "Desktop project covers session expiry");
+  const csrf = await page.request.get("/api/auth/csrf/").then((response) => response.json()).then((data) => data.csrfToken as string);
+  const login = await page.request.post("/api/auth/login/", { headers: { "X-CSRFToken": csrf }, data: { email: "admin@pacifica.local", password: "E2E-Only-Password-12345" } });
+  expect(login.ok()).toBe(true);
   await page.goto("/app");
-  await page.getByLabel("Correo").fill("admin@pacifica.local");
-  await page.getByLabel("Contrasena").fill("E2E-Only-Password-12345");
-  await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByRole("heading", { name: "Panel administrativo" })).toBeVisible();
   await context.clearCookies();
-  await page.getByRole("button", { name: "Aplicar filtros" }).evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: /Leads/ }).click();
   await expect(page.getByRole("heading", { name: "Portal administrativo" })).toBeVisible();
 });
 
@@ -167,12 +169,37 @@ test("P1 pagination, assignments, rescheduling, weekly filters and history", asy
   await expect(page.getByText(/Reprogramado/)).toBeVisible();
 });
 
+test("keyboard navigation and administrative dialogs are accessible", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes("mobile"), "Desktop project covers keyboard dialog behavior");
+  await page.goto("/");
+  await expect(page.getByRole("banner")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Navegación principal" })).toBeVisible();
+  await expect(page.getByRole("main")).toBeVisible();
+  await expect(page.getByRole("contentinfo")).toBeVisible();
+
+  const csrf = await page.request.get("/api/auth/csrf/").then((response) => response.json()).then((data) => data.csrfToken as string);
+  const login = await page.request.post("/api/auth/login/", { headers: { "X-CSRFToken": csrf }, data: { email: "admin@pacifica.local", password: "E2E-Only-Password-12345" } });
+  expect(login.ok()).toBe(true);
+  await page.goto("/app/leads");
+  await page.getByRole("button", { name: "Nuevo" }).click();
+  const dialog = page.getByRole("dialog", { name: /Crear Leads/ });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});
+
 test("mobile public view has no horizontal overflow", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("mobile"), "Mobile project only");
   await page.goto("/");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
   await expect(page.getByRole("heading", { name: /Limpieza profesional/ })).toBeVisible();
+  await page.getByRole("button", { name: "Abrir menú" }).click();
+  const navigation = page.getByRole("navigation", { name: "Navegación principal" });
+  await expect(navigation).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(navigation).toBeHidden();
 });
 
 test("mobile weekly agenda has no critical horizontal overflow", async ({ page }, testInfo) => {

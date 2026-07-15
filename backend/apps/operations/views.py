@@ -4,8 +4,29 @@ from rest_framework import decorators, response, serializers, status, viewsets
 
 from apps.core.permissions import ADMIN_ROLES, OPERATIONS_ROLES, QUALITY_ROLES, READ_ONLY_ROLES, STAFF_ROLES, RoleActionPermission
 from apps.people.models import WorkerProfile
-from .models import Assignment, WorkOrder, WorkOrderStatusHistory
-from .serializers import WorkOrderSerializer
+from .models import Assignment, Incident, QualityReview, WorkOrder, WorkOrderStatusHistory
+from .serializers import IncidentSerializer, QualityReviewSerializer, WorkOrderSerializer
+
+
+class QualityReviewViewSet(viewsets.ModelViewSet):
+    queryset = QualityReview.objects.select_related("work_order").all().order_by("-created_at")
+    serializer_class = QualityReviewSerializer
+    permission_classes = [RoleActionPermission]
+    action_roles = {
+        "list": READ_ONLY_ROLES,
+        "retrieve": READ_ONLY_ROLES,
+        "create": QUALITY_ROLES,
+        "update": QUALITY_ROLES,
+        "partial_update": QUALITY_ROLES,
+        "destroy": ADMIN_ROLES,
+    }
+
+
+class IncidentViewSet(viewsets.ModelViewSet):
+    queryset = Incident.objects.select_related("work_order").all().order_by("-created_at")
+    serializer_class = IncidentSerializer
+    permission_classes = [RoleActionPermission]
+    action_roles = QualityReviewViewSet.action_roles
 
 
 class WorkOrderViewSet(viewsets.ModelViewSet):

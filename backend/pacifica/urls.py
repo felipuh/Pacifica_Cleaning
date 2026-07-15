@@ -12,7 +12,7 @@ from apps.finance.views import ExpenseViewSet, PaymentViewSet
 from apps.inventory.views import InventoryItemViewSet, StockMovementViewSet
 from apps.marketing.views import CampaignViewSet, CouponViewSet
 from apps.notifications.views import NotificationTemplateViewSet
-from apps.operations.views import WorkOrderViewSet
+from apps.operations.views import IncidentViewSet, QualityReviewViewSet, WorkOrderViewSet
 from apps.people.views import WorkerProfileViewSet
 from apps.services.views import PriceVersionViewSet, QuoteViewSet, ServiceViewSet
 
@@ -25,6 +25,8 @@ router.register("services", ServiceViewSet)
 router.register("price-versions", PriceVersionViewSet)
 router.register("quotes", QuoteViewSet)
 router.register("work-orders", WorkOrderViewSet)
+router.register("quality-reviews", QualityReviewViewSet)
+router.register("incidents", IncidentViewSet)
 router.register("workers", WorkerProfileViewSet)
 router.register("payments", PaymentViewSet)
 router.register("expenses", ExpenseViewSet)

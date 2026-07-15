@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Assignment, ChecklistResult, QualityReview, WorkOrder, WorkOrderStatusHistory
+from .models import Assignment, ChecklistResult, Incident, QualityReview, WorkOrder, WorkOrderStatusHistory
 
 
 class WorkOrderStatusHistorySerializer(serializers.ModelSerializer):
@@ -70,4 +70,22 @@ class ChecklistResultSerializer(serializers.ModelSerializer):
 class QualityReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = QualityReview
+        fields = "__all__"
+
+    def validate(self, attrs):
+        score = attrs.get("score", getattr(self.instance, "score", None))
+        nps = attrs.get("nps", getattr(self.instance, "nps", None))
+        rework_cost = attrs.get("rework_cost", getattr(self.instance, "rework_cost", 0))
+        if score is not None and not 1 <= score <= 5:
+            raise serializers.ValidationError({"score": "La puntuación debe estar entre 1 y 5."})
+        if nps is not None and not -100 <= nps <= 100:
+            raise serializers.ValidationError({"nps": "El NPS debe estar entre -100 y 100."})
+        if rework_cost < 0:
+            raise serializers.ValidationError({"rework_cost": "El costo de retrabajo no puede ser negativo."})
+        return attrs
+
+
+class IncidentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Incident
         fields = "__all__"
