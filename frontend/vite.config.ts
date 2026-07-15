@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     port: 5174,
     strictPort: true,
+    allowedHosts: ["pacifica-cleaning.test", "www.pacifica-cleaning.test"],
     proxy: {
       "/api": {
         target: process.env.VITE_BACKEND_PROXY_TARGET || "http://localhost:8001",
