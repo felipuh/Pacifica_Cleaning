@@ -392,6 +392,36 @@
 }
 
 @media (max-width: 680px) {
+  .admin-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .sidebar-heading {
+    grid-column: 1 / -1;
+  }
+
+  .sidebar button,
+  .sidebar button span,
+  .workspace,
+  .workspace > * {
+    min-width: 0;
+  }
+
+  .sidebar button small {
+    display: none;
+  }
+
+  .workspace {
+    padding: 16px;
+  }
+
   .admin-filters,
   .editor-form {
     grid-template-columns: 1fr;

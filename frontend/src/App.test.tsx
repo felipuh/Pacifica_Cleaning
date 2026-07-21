@@ -13,9 +13,9 @@ describe("App", () => {
     vi.stubGlobal("fetch", fetchMock);
     window.history.replaceState({}, "", "/");
     render(<App />);
-    expect(screen.getAllByText("PACÍFICA")[0]).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /limpieza profesional para hogares/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /solicitar cotización/i })).toBeInTheDocument();
+    expect(screen.getAllByText("PACÍFICA CLEANING")[0]).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cada espacio listo. Cada coordinación bajo control." })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /solicitar cotización/i })[0]).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -33,20 +33,20 @@ describe("App", () => {
     window.history.replaceState({}, "", "/legal");
     render(<App />);
 
-    expect(screen.getByRole("link", { name: "Servicios" })).toHaveAttribute("href", "/#servicios");
-    expect(screen.getByRole("link", { name: "Contacto" })).toHaveAttribute("href", "/#cotizar");
+    expect(screen.getByRole("link", { name: "Hogares" })).toHaveAttribute("href", "/#necesidades");
+    expect(screen.getByRole("link", { name: "Cobertura" })).toHaveAttribute("href", "/#cobertura");
   });
 
   it("renders the public experience in English and updates SEO metadata", async () => {
     window.history.replaceState({}, "", "/?lang=en");
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: /professional cleaning for homes/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cada espacio listo. Cada coordinación bajo control." })).toBeInTheDocument();
     await waitFor(() => expect(document.documentElement).toHaveAttribute("lang", "en"));
     expect(document.title).toMatch(/Professional cleaning in Guanacaste/);
     expect(document.querySelector('link[rel="alternate"][hreflang="es"]')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "ES" }));
-    expect(screen.getByRole("heading", { name: /limpieza profesional para hogares/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /idioma actual: inglés/i }));
+    expect(screen.getByRole("heading", { name: "Cada espacio listo. Cada coordinación bajo control." })).toBeInTheDocument();
     expect(window.location.search).toBe("");
   });
 

@@ -12,16 +12,17 @@ test("visitor lead becomes a completed scheduled service", async ({ page }, test
   const end = `${date}T11:00`;
 
   await page.goto("/");
-  await page.getByLabel("Nombre").fill(leadName);
-  await page.getByLabel("Correo").fill(`lead-${suffix}@example.test`);
+  await page.getByLabel("Nombre completo").fill(leadName);
+  await page.getByLabel("Correo electrónico").fill(`lead-${suffix}@example.test`);
   await page.getByLabel(/Tel[eé]fono/).fill(customerPhone);
-  await page.getByLabel(/Acepto el tratamiento de datos/).check();
+  await page.getByLabel(/Autorizo que me contacten/).check();
+  await page.getByLabel(/Acepto el tratamiento de mis datos/).check();
   await page.getByRole("button", { name: "Enviar solicitud" }).click();
-  await expect(page.getByText("Solicitud recibida.")).toBeVisible();
+  await expect(page.getByText(/Recibimos su solicitud/)).toBeVisible();
 
   await page.getByRole("button", { name: "Admin" }).click();
   await page.getByLabel("Correo").fill("admin@pacifica.local");
-  await page.getByLabel("Contrasena").fill("E2E-Only-Password-12345");
+  await page.getByLabel("Contraseña").fill("E2E-Only-Password-12345");
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByRole("heading", { name: "Panel administrativo" })).toBeVisible();
   await page.getByRole("button", { name: /Leads/ }).click();
@@ -73,17 +74,18 @@ test("invalid login, denied API, network error and 404 are handled", async ({ pa
   test.skip(testInfo.project.name.includes("mobile"), "Desktop project covers failure states");
   await page.goto("/app");
   await page.getByLabel("Correo").fill("missing@example.test");
-  await page.getByLabel("Contrasena").fill("Invalid-Password-123");
+  await page.getByLabel("Contraseña").fill("Invalid-Password-123");
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByText(/Credenciales invalidas/)).toBeVisible();
 
   await page.route("**/api/v1/leads/", (route) => route.abort("failed"));
   await page.goto("/");
-  await page.getByLabel("Nombre").fill("Error de red E2E");
+  await page.getByLabel("Nombre completo").fill("Error de red E2E");
   await page.getByLabel(/Tel[eé]fono/).fill("80009999");
-  await page.getByLabel(/Acepto el tratamiento de datos/).check();
+  await page.getByLabel(/Autorizo que me contacten/).check();
+  await page.getByLabel(/Acepto el tratamiento de mis datos/).check();
   await page.getByRole("button", { name: "Enviar solicitud" }).click();
-  await expect(page.getByText(/No se pudo enviar/)).toBeVisible();
+  await expect(page.getByText(/No pudimos enviar/)).toBeVisible();
   await page.unroute("**/api/v1/leads/");
   await page.goto("/ruta-inexistente");
   await expect(page.getByRole("heading", { name: "Página no encontrada" })).toBeVisible();
@@ -105,7 +107,7 @@ test("P1 pagination, assignments, rescheduling, weekly filters and history", asy
   test.skip(testInfo.project.name.includes("mobile"), "Desktop project covers P1 mutations");
   await page.goto("/app");
   await page.getByLabel("Correo").fill("admin@pacifica.local");
-  await page.getByLabel("Contrasena").fill("E2E-Only-Password-12345");
+  await page.getByLabel("Contraseña").fill("E2E-Only-Password-12345");
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByRole("heading", { name: "Panel administrativo" })).toBeVisible();
 
@@ -194,7 +196,7 @@ test("mobile public view has no horizontal overflow", async ({ page }, testInfo)
   await page.goto("/");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
-  await expect(page.getByRole("heading", { name: /Limpieza profesional/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Cada espacio listo/ })).toBeVisible();
   await page.getByRole("button", { name: "Abrir menú" }).click();
   const navigation = page.getByRole("navigation", { name: "Navegación principal" });
   await expect(navigation).toBeVisible();
@@ -206,10 +208,17 @@ test("mobile weekly agenda has no critical horizontal overflow", async ({ page }
   test.skip(!testInfo.project.name.includes("mobile"), "Mobile project only");
   await page.goto("/app");
   await page.getByLabel("Correo").fill("admin@pacifica.local");
-  await page.getByLabel("Contrasena").fill("E2E-Only-Password-12345");
+  await page.getByLabel("Contraseña").fill("E2E-Only-Password-12345");
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.getByRole("button", { name: /Agenda/ }).evaluate((button: HTMLButtonElement) => button.click());
   await page.getByRole("button", { name: "Semana" }).evaluate((button: HTMLButtonElement) => button.click());
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
-  expect(overflow).toBe(false);
+  const overflow = await page.evaluate(() => ({
+    active: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    offenders: Array.from(document.querySelectorAll<HTMLElement>("body *")).filter((node) => {
+      if (node.hidden || getComputedStyle(node).display === "none") return false;
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && (rect.left < -1 || rect.right > document.documentElement.clientWidth + 1);
+    }).map((node) => `${node.tagName}.${node.className}`).slice(0, 12),
+  }));
+  expect(overflow.active, JSON.stringify(overflow.offenders)).toBe(false);
 });
